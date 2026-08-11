@@ -1,0 +1,12 @@
+[Unit]
+Description=herdr-watch bark notifier
+After=network-online.target
+
+[Service]
+ExecStart=node %h/Projects/herdr-watch/herdr-notify.js
+Environment=BARK_KEY=
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

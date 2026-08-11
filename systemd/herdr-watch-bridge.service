@@ -1,0 +1,11 @@
+[Unit]
+Description=herdr-watch bridge (roster + hooks over SSE)
+After=network-online.target
+
+[Service]
+ExecStart=node %h/Projects/herdr-watch/bridge.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -95,10 +95,15 @@ turn up: `@AppStorage` does not drive `objectWillChange` from inside an
 
 ## Running as services
 
+Copy the units from `systemd/`, fill in `BARK_KEY`, then:
+
 ```bash
 systemctl --user enable --now herdr-watch          # push
 systemctl --user enable --now herdr-watch-bridge   # bridge
 ```
+
+`ExecStart` calls bare `node`. If yours comes from a version manager, put its
+absolute path in instead — systemd does not read your shell profile.
 
 ## Not built yet
 
