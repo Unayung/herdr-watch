@@ -1,0 +1,27 @@
+name: HerdrWatch
+options:
+  bundleIdPrefix: dev.unayung
+  deploymentTarget:
+    watchOS: "10.0"
+  createIntermediateGroups: true
+
+targets:
+  HerdrWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_NAME: herdr
+        PRODUCT_BUNDLE_IDENTIFIER: dev.unayung.herdrwatch
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_WKApplication: YES
+        INFOPLIST_KEY_CFBundleDisplayName: herdr
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        TARGETED_DEVICE_FAMILY: 4
+        SWIFT_VERSION: 5.0
+        CODE_SIGN_STYLE: Automatic
+        # Set this to your team, or set it once in Xcode's Signing & Capabilities.
+        DEVELOPMENT_TEAM: ""

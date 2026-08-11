@@ -1,0 +1,5 @@
+node_modules/
+*.bak
+watch/*.xcodeproj/
+watch/DerivedData/
+.DS_Store

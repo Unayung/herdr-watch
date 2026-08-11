@@ -1,0 +1,300 @@
+#!/usr/bin/env node
+// Serves herdr's agent roster to the watch over SSE.
+//
+//   node bridge.js                 # prints the token, listens on 127.0.0.1:7860
+//   tailscale funnel 7860          # publish it at https://<node>.<tailnet>.ts.net
+//
+// Funnel puts this on the public internet, so every route except /health requires
+// the token. The token is generated once and kept in TOKEN_FILE.
+
+import http from "node:http";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import crypto from "node:crypto";
+import assert from "node:assert";
+import { pathToFileURL } from "node:url";
+import { agents, screen } from "./herdr.js";
+
+const PORT = Number(process.env.PORT || 7860);
+const HOST = process.env.HOST || "127.0.0.1";
+const POLL_MS = Number(process.env.POLL_MS || 2000);
+const STATE_DIR = path.join(os.homedir(), ".local/state/herdr-watch");
+const TOKEN_FILE = path.join(STATE_DIR, "token");
+const CODE_FILE = path.join(STATE_DIR, "pair-code");
+const CODE_TTL_MS = 10 * 60 * 1000;
+const CODE_TRIES = 5;
+
+function loadToken() {
+  if (process.env.WATCH_TOKEN) return process.env.WATCH_TOKEN;
+  try {
+    return fs.readFileSync(TOKEN_FILE, "utf8").trim();
+  } catch {
+    const token = crypto.randomBytes(24).toString("base64url");
+    fs.mkdirSync(path.dirname(TOKEN_FILE), { recursive: true });
+    fs.writeFileSync(TOKEN_FILE, token + "\n", { mode: 0o600 });
+    return token;
+  }
+}
+
+/** Only what the watch renders — the rest of an AgentInfo is noise on a wrist. */
+export function projectRoster(list) {
+  return list
+    .map((a) => ({
+      paneId: a.pane_id,
+      sessionId: a.agent_session?.value ?? null,
+      agent: a.agent ?? "unknown",
+      status: a.agent_status ?? "unknown",
+      title: a.terminal_title_stripped || a.title || a.agent || a.pane_id,
+      folder: path.basename(a.cwd || "") || a.pane_id,
+      cwd: a.cwd ?? "",
+      focused: Boolean(a.focused),
+    }))
+    .sort((x, y) => RANK.indexOf(x.status) - RANK.indexOf(y.status) || x.title.localeCompare(y.title));
+}
+
+// What you want to see first on a wrist: whoever is waiting on you.
+const RANK = ["blocked", "done", "working", "idle", "unknown"];
+
+/**
+ * A rotating 6-digit code, so the watch never has to type the real token. It is
+ * written to CODE_FILE rather than served over HTTP — reading it means having a
+ * shell on this machine, which is the point.
+ *
+ * ponytail: six digits is only safe because the window is short and the tries are
+ * few. Keep both if you touch this.
+ */
+export function makePairing(now = () => Date.now()) {
+  let code = null;
+  let born = 0;
+  let tries = 0;
+  const rotate = () => {
+    code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+    born = now();
+    tries = 0;
+    return code;
+  };
+  return {
+    current() {
+      if (code === null || now() - born > CODE_TTL_MS) return rotate();
+      return code;
+    },
+    /** True once, for the right code, while it is live and not burnt. */
+    accept(candidate) {
+      if (code === null || now() - born > CODE_TTL_MS) return false;
+      if (tries >= CODE_TRIES) return false;
+      if (String(candidate) !== code) {
+        tries += 1;
+        return false;
+      }
+      rotate();
+      return true;
+    },
+  };
+}
+
+/**
+ * A Claude Code hook payload, reduced to what a wrist can use. `session_id` is the
+ * join key: herdr stores the same uuid as an agent's `agent_session.value`.
+ */
+export function projectHook(body) {
+  const input = body.tool_input ?? {};
+  const detail =
+    input.command ?? input.file_path ?? input.pattern ?? input.prompt ?? input.description ?? "";
+  const hook = {
+    sessionId: body.session_id ?? null,
+    event: body.hook_event_name ?? "unknown",
+    tool: body.tool_name ?? null,
+    detail: String(detail).slice(0, 200),
+  };
+  // AskUserQuestion carries its own options; plain permission prompts carry
+  // suggestions. Either way the watch renders a list, so normalise to one shape.
+  const questions = input.questions;
+  if (questions?.length) {
+    hook.questions = questions.map((q) => ({
+      question: q.question ?? "",
+      options: (q.options ?? []).map((o) => ({ label: o.label ?? "", description: o.description ?? "" })),
+    }));
+  } else if (body.permission_suggestions?.length) {
+    hook.questions = [
+      {
+        question: `${body.tool_name ?? "tool"}?`,
+        options: body.permission_suggestions.map((s) => ({ label: String(s.behavior ?? s), description: "" })),
+      },
+    ];
+  }
+  return hook;
+}
+
+export function authorized(req, url, token) {
+  const header = req.headers.authorization || "";
+  return header === `Bearer ${token}` || url.searchParams.get("token") === token;
+}
+
+function sse(res) {
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  return (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+async function main() {
+  const token = loadToken();
+  const pairing = makePairing();
+  const clients = new Set();
+  let roster = [];
+
+  const publishCode = () => {
+    fs.mkdirSync(STATE_DIR, { recursive: true });
+    fs.writeFileSync(CODE_FILE, pairing.current() + "\n", { mode: 0o600 });
+  };
+  publishCode();
+  setInterval(publishCode, 60_000).unref();
+
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+
+    if (url.pathname === "/health") return json(res, 200, { ok: true });
+
+    if (url.pathname === "/pair" && req.method === "POST") {
+      const body = await readBody(req).catch(() => ({}));
+      if (!pairing.accept(body.code)) return json(res, 403, { error: "bad code" });
+      publishCode();
+      console.log("paired a client");
+      return json(res, 200, { token });
+    }
+
+    if (!authorized(req, url, token)) return json(res, 401, { error: "unauthorized" });
+
+    if (url.pathname === "/roster") return json(res, 200, { roster });
+
+    if (url.pathname === "/screen") {
+      const pane = url.searchParams.get("pane");
+      if (!pane) return json(res, 400, { error: "pane required" });
+      const text = await screen(pane).catch(() => "");
+      return json(res, 200, { pane, text });
+    }
+
+    // One endpoint for every hook — the payload names its own event. Observe only:
+    // an empty response leaves the permission decision to whoever else is hooked in.
+    if (url.pathname === "/hook" && req.method === "POST") {
+      const body = await readBody(req).catch(() => ({}));
+      const hook = projectHook(body);
+      for (const send of clients) send("hook", hook);
+      console.log(`hook ${hook.event} ${hook.tool ?? ""} ${hook.detail}`.trimEnd());
+      return json(res, 200, {});
+    }
+
+    if (url.pathname === "/events") {
+      const send = sse(res);
+      send("roster", { roster });
+      clients.add(send);
+      // ponytail: 25s comment keeps Funnel's proxy from reaping an idle stream.
+      const beat = setInterval(() => res.write(": beat\n\n"), 25000);
+      req.on("close", () => {
+        clearInterval(beat);
+        clients.delete(send);
+      });
+      return;
+    }
+
+    return json(res, 404, { error: "not found" });
+  });
+
+  server.listen(PORT, HOST, () => {
+    console.log(`bridge on http://${HOST}:${PORT}`);
+    console.log(`pair code: cat ${CODE_FILE}`);
+    console.log(`publish: tailscale funnel ${PORT}`);
+  });
+
+  for (;;) {
+    try {
+      const next = projectRoster(await agents());
+      if (JSON.stringify(next) !== JSON.stringify(roster)) {
+        roster = next;
+        for (const send of clients) send("roster", { roster });
+      }
+    } catch (err) {
+      console.error("herdr unreachable:", err.message);
+    }
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > 1_000_000) reject(new Error("body too large"));
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(raw || "{}"));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function json(res, code, body) {
+  res.writeHead(code, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function selftest() {
+  const rows = projectRoster([
+    { pane_id: "p1", agent_status: "idle", cwd: "/a/pluto", terminal_title_stripped: "JP" },
+    { pane_id: "p2", agent_status: "blocked", cwd: "/a/pluto", terminal_title_stripped: "Styx" },
+    { pane_id: "p3", agent_status: "working", cwd: "/a/x", agent: "claude", agent_session: { value: "uuid-3" } },
+  ]);
+  assert.deepEqual(rows.map((r) => r.paneId), ["p2", "p3", "p1"], "blocked sorts above working above idle");
+  assert.equal(rows[0].folder, "pluto");
+  assert.equal(rows[1].sessionId, "uuid-3", "claude session uuid carried for the hook join");
+  assert.equal(rows[2].title, "JP");
+
+  const bash = projectHook({ session_id: "u1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "npm test" } });
+  assert.deepEqual(bash, { sessionId: "u1", event: "PreToolUse", tool: "Bash", detail: "npm test" });
+  assert.equal(projectHook({ tool_input: { file_path: "/a/b.ts" } }).detail, "/a/b.ts", "file tools summarise by path");
+  assert.equal(projectHook({}).sessionId, null, "a payload without a session still projects");
+  assert.equal(projectHook({ tool_input: { command: "x".repeat(500) } }).detail.length, 200, "detail capped");
+
+  const asked = projectHook({
+    hook_event_name: "PermissionRequest",
+    tool_name: "AskUserQuestion",
+    tool_input: { questions: [{ question: "Ship it?", options: [{ label: "Yes" }, { label: "No", description: "wait" }] }] },
+  });
+  assert.deepEqual(asked.questions[0].options.map((o) => o.label), ["Yes", "No"], "options normalised");
+  const suggested = projectHook({ hook_event_name: "PermissionRequest", tool_name: "Bash", permission_suggestions: [{ behavior: "allow" }] });
+  assert.deepEqual(suggested.questions[0].options.map((o) => o.label), ["allow"], "suggestions normalise to the same shape");
+
+  let clock = 0;
+  const pairing = makePairing(() => clock);
+  const code = pairing.current();
+  assert.match(code, /^\d{6}$/, "six digits");
+  assert.equal(pairing.current(), code, "stable while live");
+  assert.ok(!pairing.accept("000000") || code === "000000", "a wrong code is refused");
+  assert.ok(pairing.accept(code), "the right code pairs");
+  assert.ok(!pairing.accept(code), "and cannot be replayed");
+  const fresh = pairing.current();
+  for (let i = 0; i < CODE_TRIES; i++) pairing.accept("bad");
+  assert.ok(!pairing.accept(fresh), "burnt after too many tries, even for the right code");
+  clock = CODE_TTL_MS + 1;
+  assert.notEqual(pairing.current(), fresh, "rotates once expired");
+
+  const url = new URL("http://x/events?token=good");
+  assert.ok(authorized({ headers: {} }, url, "good"), "query token accepted");
+  assert.ok(authorized({ headers: { authorization: "Bearer good" } }, new URL("http://x/events"), "good"), "bearer accepted");
+  assert.ok(!authorized({ headers: {} }, new URL("http://x/events"), "good"), "no token rejected");
+  assert.ok(!authorized({ headers: {} }, new URL("http://x/events?token=bad"), "good"), "wrong token rejected");
+  console.log("ok");
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  if (process.argv[2] === "--selftest") selftest();
+  else main();
+}

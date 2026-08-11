@@ -1,0 +1,16 @@
+{
+  "name": "herdr-watch",
+  "version": "0.1.0",
+  "description": "Agent status from herdr on your Apple Watch",
+  "type": "module",
+  "scripts": {
+    "notify": "node herdr-notify.js",
+    "bridge": "node bridge.js",
+    "hooks": "node setup-hooks.js",
+    "pair": "cat ~/.local/state/herdr-watch/pair-code",
+    "test": "node herdr-notify.js --selftest && node bridge.js --selftest"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
