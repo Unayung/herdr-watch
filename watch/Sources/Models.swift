@@ -11,6 +11,9 @@ struct Agent: Codable, Identifiable, Hashable {
     let folder: String
     let cwd: String
     let focused: Bool
+    /// herdr's state counter. Sent back with a reply so a tap that lost the race
+    /// is refused instead of typing into whatever prompt came next.
+    let seq: Int
 
     var id: String { paneId }
 

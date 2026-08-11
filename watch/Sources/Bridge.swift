@@ -85,6 +85,30 @@ final class Bridge: ObservableObject {
         }
     }
 
+    /// Answer a prompt by typing into the pane. This deliberately does not go
+    /// through the hook: the terminal, the notch, and the wrist are all just input
+    /// to the same TTY, and whoever gets there first wins. A 409 means someone
+    /// already did — the roster will drop the buttons on its own.
+    @discardableResult
+    func reply(pane: String, seq: Int, keys: [String]) async -> Bool {
+        guard let url = url("/reply") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["pane": pane, "seq": seq, "keys": keys])
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 409 { error = "已經在別處回答過了" }
+            await refresh()
+            return code == 200
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     func screen(pane: String) async -> String {
         let escaped = pane.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? pane
         guard let req = request("/screen", query: "?pane=\(escaped)") else { return "" }

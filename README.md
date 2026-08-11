@@ -60,6 +60,7 @@ npm run pair                     # the 6-digit code the watch asks for
 | `GET /roster` | agents, sorted blocked → done → working → idle |
 | `GET /events` | the roster over SSE, plus `hook` events |
 | `GET /screen?pane=` | that pane's screen, on demand |
+| `POST /reply` | type keys into a pane, guarded by its state counter |
 | `POST /hook` | every Claude Code hook; observed, never answered |
 
 Funnel puts this on the public internet, so the token is the whole trust boundary.
@@ -105,10 +106,22 @@ systemctl --user enable --now herdr-watch-bridge   # bridge
 `ExecStart` calls bare `node`. If yours comes from a version manager, put its
 absolute path in instead — systemd does not read your shell profile.
 
-## Not built yet
+## Answering from the wrist
 
-Replying from the wrist. herdr can do the writing — `pane.send_keys` for an
-approval, `agent.prompt` for dictated text — and Claude Code wants a decision
-shaped like `hookSpecificOutput.decision.behavior`. What it needs first is a call
-on which UI owns `PermissionRequest`: two deciders on the same hook race, and
-whoever answers second is talking to a prompt that has already moved on.
+No UI has to own `PermissionRequest`. The wrist answers by typing into the pane
+through `pane.send_keys`, which is what your hands would have done — so the
+terminal, a notch app, and the watch are three inputs to one TTY rather than three
+tools fighting over one hook response. First one there wins.
+
+Dismissal falls out of the same place the status came from. Buttons render only
+while herdr reports that pane `blocked`; whoever answers, herdr sees the prompt
+leave the screen and the next roster event takes the buttons away everywhere.
+
+The remaining race is the two seconds between a poll and a tap. `/reply` closes it
+by comparing the `state_change_seq` the watch last saw against herdr's current one
+and refusing on a mismatch, so a late tap cannot type into whatever prompt arrived
+next. Worth keeping if you touch this: without the check, a stale `1` lands in the
+agent's input box and submits a turn.
+
+Still not built: dictating a prompt from the wrist. `agent.prompt` handles
+bracketed paste and Enter atomically, so it is the right call when it happens.

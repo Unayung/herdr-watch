@@ -30,6 +30,14 @@ export async function agents() {
   return res?.result?.agents ?? [];
 }
 
+export async function agentAt(paneId) {
+  return (await agents()).find((a) => a.pane_id === paneId) ?? null;
+}
+
+export async function sendKeys(paneId, keys) {
+  return call("pane.send_keys", { pane_id: paneId, keys });
+}
+
 export async function screen(paneId) {
   const res = await call("pane.read", { pane_id: paneId, source: "detection" });
   return res?.result?.read?.text ?? "";

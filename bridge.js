@@ -14,7 +14,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import assert from "node:assert";
 import { pathToFileURL } from "node:url";
-import { agents, screen } from "./herdr.js";
+import { agents, agentAt, screen, sendKeys } from "./herdr.js";
 
 const PORT = Number(process.env.PORT || 7860);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -49,6 +49,8 @@ export function projectRoster(list) {
       folder: path.basename(a.cwd || "") || a.pane_id,
       cwd: a.cwd ?? "",
       focused: Boolean(a.focused),
+      // What /reply compares against, so a stale tap cannot type into the next prompt.
+      seq: a.state_change_seq ?? 0,
     }))
     .sort((x, y) => RANK.indexOf(x.status) - RANK.indexOf(y.status) || x.title.localeCompare(y.title));
 }
@@ -177,6 +179,28 @@ async function main() {
       return json(res, 200, { pane, text });
     }
 
+    // Answer a prompt by typing into the pane, exactly as a hand at the keyboard
+    // would. Nothing here touches the hook decision, so any other tool hooked into
+    // PermissionRequest keeps working and simply finds the prompt already gone.
+    //
+    // `seq` is the state_change_seq the caller last saw. If herdr has moved on —
+    // someone answered in the terminal, or in another UI — the keystroke is refused
+    // rather than landing in whatever came next.
+    if (url.pathname === "/reply" && req.method === "POST") {
+      const body = await readBody(req).catch(() => ({}));
+      const agent = await agentAt(body.pane).catch(() => null);
+      if (!agent) return json(res, 404, { error: "no such pane" });
+      if (agent.agent_status !== "blocked") return json(res, 409, { error: "not blocked", status: agent.agent_status });
+      if (body.seq !== undefined && agent.state_change_seq !== body.seq) {
+        return json(res, 409, { error: "stale", seq: agent.state_change_seq });
+      }
+      const keys = Array.isArray(body.keys) ? body.keys.slice(0, 8).map(String) : [];
+      if (!keys.length) return json(res, 400, { error: "keys required" });
+      await sendKeys(body.pane, keys);
+      console.log(`reply ${body.pane} ${keys.join(" ")}`);
+      return json(res, 200, { ok: true });
+    }
+
     // One endpoint for every hook — the payload names its own event. Observe only:
     // an empty response leaves the permission decision to whoever else is hooked in.
     if (url.pathname === "/hook" && req.method === "POST") {
@@ -250,8 +274,10 @@ function selftest() {
   const rows = projectRoster([
     { pane_id: "p1", agent_status: "idle", cwd: "/a/pluto", terminal_title_stripped: "JP" },
     { pane_id: "p2", agent_status: "blocked", cwd: "/a/pluto", terminal_title_stripped: "Styx" },
-    { pane_id: "p3", agent_status: "working", cwd: "/a/x", agent: "claude", agent_session: { value: "uuid-3" } },
+    { pane_id: "p3", agent_status: "working", cwd: "/a/x", agent: "claude", agent_session: { value: "uuid-3" }, state_change_seq: 42 },
   ]);
+  assert.equal(rows[1].seq, 42, "sequence carried for the reply guard");
+  assert.equal(rows[0].seq, 0, "a missing sequence is zero, never undefined");
   assert.deepEqual(rows.map((r) => r.paneId), ["p2", "p3", "p1"], "blocked sorts above working above idle");
   assert.equal(rows[0].folder, "pluto");
   assert.equal(rows[1].sessionId, "uuid-3", "claude session uuid carried for the hook join");

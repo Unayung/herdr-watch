@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 
 struct AgentDetailView: View {
     let agent: Agent
@@ -23,19 +24,24 @@ struct AgentDetailView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                if let hook = bridge.lastHook,
-                   hook.sessionId == current.sessionId,
-                   let questions = hook.questions {
-                    ForEach(questions, id: \.self) { question in
+                // Buttons exist only while herdr still says this pane is blocked.
+                // The moment it is answered anywhere — terminal, notch, or here —
+                // the roster event flips the status and they go away by themselves.
+                if current.status == "blocked" {
+                    if let question = askedQuestion {
                         Text(question.question)
                             .font(.footnote)
                             .padding(.top, 4)
-                        ForEach(question.options, id: \.self) { option in
-                            Text("• \(option.label)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
+                            Button {
+                                send(keys: ["\(index + 1)"])
+                            } label: {
+                                Text(option.label).font(.caption)
+                            }
                         }
                     }
+                    Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }
+                        .font(.caption2)
                     Divider()
                 }
 
@@ -50,6 +56,25 @@ struct AgentDetailView: View {
         }
         .navigationTitle(current.title)
         .task { await load() }
+    }
+
+    /// The options the hook reported, but only for this pane's session.
+    private var askedQuestion: HookEvent.Question? {
+        guard let hook = bridge.lastHook,
+              hook.sessionId != nil,
+              hook.sessionId == current.sessionId
+        else { return nil }
+        return hook.questions?.first
+    }
+
+    private func send(keys: [String]) {
+        let pane = current.paneId
+        let seq = current.seq
+        Task {
+            let sent = await bridge.reply(pane: pane, seq: seq, keys: keys)
+            WKInterfaceDevice.current().play(sent ? .success : .failure)
+            await load()
+        }
     }
 
     private func load() async {
