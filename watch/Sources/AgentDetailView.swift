@@ -13,8 +13,10 @@ struct AgentDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+        // A List rather than a ScrollView: watchOS lays its rows out full width on
+        // its own, which hand-tuned frames inside a leading-aligned stack did not.
+        List {
+            Section {
                 // The task title carries the whole line here rather than in the
                 // navigation bar, where watchOS truncates it after a few words.
                 Text(current.title)
@@ -24,40 +26,28 @@ struct AgentDetailView: View {
                     Text(current.label)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Spacer()
                 }
+            }
 
-                // Buttons exist only while herdr still says this pane is blocked.
-                // The moment it is answered anywhere — terminal, notch, or here —
-                // the roster event flips the status and they go away by themselves.
-                if current.status == "blocked" {
+            // Buttons exist only while herdr still says this pane is blocked. The
+            // moment it is answered anywhere — terminal, notch, or here — the roster
+            // event flips the status and they go away by themselves.
+            if current.status == "blocked" {
+                Section {
                     if let question = askedQuestion {
                         Text(question.question)
                             .font(.footnote)
-                            .padding(.top, 4)
                         ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
-                            Button {
-                                send(keys: ["\(index + 1)"])
-                            } label: {
-                                // The surrounding stack is leading-aligned so the
-                                // text reads properly; buttons have to be told to
-                                // span the width or they stop at their content.
-                                Text(option.label)
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity)
-                            }
+                            Button(option.label) { send(keys: ["\(index + 1)"]) }
+                                .font(.caption)
                         }
                     }
-                    Button(role: .destructive) {
-                        send(keys: ["esc"])
-                    } label: {
-                        Text("取消 (Esc)")
-                            .font(.caption2)
-                            .frame(maxWidth: .infinity)
-                    }
-                    Divider()
+                    Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }
+                        .font(.caption2)
                 }
+            }
 
+            Section {
                 if loading {
                     ProgressView()
                 } else {
@@ -65,7 +55,6 @@ struct AgentDetailView: View {
                         .font(.system(size: 12, design: .monospaced))
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .navigationTitle(current.folder)
         .task { await load() }
