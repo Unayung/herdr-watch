@@ -26,7 +26,7 @@ final class Bridge: ObservableObject {
 
     init() {
         let defaults = UserDefaults.standard
-        host = defaults.string(forKey: "host") ?? "omarchy.tail3fdc0b.ts.net"
+        host = defaults.string(forKey: "host") ?? "herdr.ccy.works"
         token = defaults.string(forKey: "token") ?? ""
     }
 

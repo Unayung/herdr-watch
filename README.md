@@ -49,9 +49,21 @@ seen. Startup takes a baseline and does not push for agents already sitting in
 ```bash
 node bridge.js                   # 127.0.0.1:7860
 node setup-hooks.js              # point Claude Code at it (--remove to undo)
-tailscale funnel --bg 7860       # publish
 npm run pair                     # the 6-digit code the watch asks for
 ```
+
+Publishing it is the one part that has to reach the open internet, because a watch
+cannot join a tailnet. Two routes, and the second is what actually shipped:
+
+- `tailscale funnel --bg 7860` — fewest dependencies, but it needs the node's
+  Let's Encrypt cert, and here `tailscale cert` failed six times with the DNS-01
+  order going `invalid` moments after `SetDNS` returned. Worth retrying if the
+  admin console's HTTPS Certificates toggle turns out to have been off.
+- A cloudflared ingress rule, which is what `herdr.ccy.works` uses. Reload with
+  `kill -HUP` rather than restarting, so anything else on that tunnel stays up.
+
+Skip `trycloudflare` quick tunnels: one registered a connection and still 404'd at
+the edge with no request ever reaching cloudflared.
 
 | Route | |
 |---|---|
