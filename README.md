@@ -4,8 +4,11 @@ Agent status from [herdr](https://herdr.dev) on an Apple Watch.
 
 <p>
   <img src="docs/wrist.jpg" alt="The roster on a Series 11: three agents, two finished and one idle" width="330">
-  <img src="docs/roster.png" alt="The same roster, screenshotted from the watch" width="240">
+  <img src="docs/roster.png" alt="The roster as it looks now: a coloured rule down each row, the count of agents waiting in the title" width="240">
 </p>
+
+The photo is a Series 11. Every screenshot here is a watchOS simulator running the
+fixtures in `Sample.swift` — invented agents, real layout.
 
 ## Install
 
@@ -229,6 +232,15 @@ absolute path in instead — systemd does not read your shell profile.
 
 ## Answering from the wrist
 
+<p>
+  <img src="docs/detail.png" alt="An agent's page: status, a 回覆… row, and the cleaned screen below it" width="240">
+  <img src="docs/answer.png" alt="The reply page: the question, then one button per option" width="240">
+</p>
+
+Reading and answering are two pages, so scrolling through what an agent has been
+doing cannot approve anything. The buttons carry the hook's own labels, and Esc is
+always the last row.
+
 Verified end to end on 2026-08-12: an `AskUserQuestion` with three options reached
 the watch with its labels intact, a tap sent `3` to the pane, and the session that
 asked received the third option. Eighteen seconds, wrist to terminal.
@@ -249,6 +261,10 @@ next. Worth keeping if you touch this: without the check, a stale `1` lands in t
 agent's input box and submits a turn.
 
 ## Dictating from the wrist
+
+<p>
+  <img src="docs/speak.png" alt="The dictation page: a text field holding a spoken sentence, and 送出 below it" width="240">
+</p>
 
 A blocked pane wants one of a numbered set; an idle one wants a sentence. Those
 are different inputs, so they have separate pages and never appear together —
