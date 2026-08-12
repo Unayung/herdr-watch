@@ -15,14 +15,17 @@ struct AgentDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 6) {
+                // The task title carries the whole line here rather than in the
+                // navigation bar, where watchOS truncates it after a few words.
+                Text(current.title)
+                    .font(.footnote)
                 HStack(spacing: 6) {
                     Circle().fill(current.color).frame(width: 8, height: 8)
-                    Text(current.label).font(.caption)
+                    Text(current.label)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     Spacer()
                 }
-                Text(current.folder)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
 
                 // Buttons exist only while herdr still says this pane is blocked.
                 // The moment it is answered anywhere — terminal, notch, or here —
@@ -64,7 +67,7 @@ struct AgentDetailView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .navigationTitle(current.title)
+        .navigationTitle(current.folder)
         .task { await load() }
     }
 
