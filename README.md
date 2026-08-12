@@ -20,6 +20,9 @@ Two ways in, because they cover different moments. Push reaches you when the app
 closed, which on watchOS is nearly always — the OS will not hold a socket open in
 the background. The app is for when you raise your wrist and want the whole board.
 
+Where this could go next — a phone page, and what open-sourcing the watch app would
+take: [ROADMAP.md](ROADMAP.md).
+
 ## Push — `herdr-notify.js`
 
 ```bash
