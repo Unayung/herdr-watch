@@ -132,7 +132,10 @@ whether it needs you. `/screen` serves the same text with a far higher cap.
 
 What gets cut is everything below the last full-width rule — the status bar, the
 quota meters, the keyboard hints — plus the terminal's shared left margin, which
-costs width a wrist does not have. The rule holds in both states, and `test/samples`
+costs width a wrist does not have. Lines the agent broke at its own right edge are
+joined back into paragraphs and left that way: whatever renders them breaks them
+at the width it actually has, and folding to a guess at that width first meant
+every paragraph got broken twice. The rule holds in both states, and `test/samples`
 holds a captured screen of each to keep it honest: on an idle pane that last rule
 is the input box, and on a blocked one it is the bottom of the question box, so
 the question and its options sit above it and survive. Guessing from an idle

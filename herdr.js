@@ -55,7 +55,7 @@ const RULE = /─{10,}/;
 const WIDE = /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/;
 
 /** Columns a string occupies, counting fullwidth characters as two. */
-export function displayWidth(text) {
+function displayWidth(text) {
   let width = 0;
   for (const ch of text) width += WIDE.test(ch) ? 2 : 1;
   return width;
@@ -66,8 +66,7 @@ export function displayWidth(text) {
 const STARTS_SOMETHING = /^\s*([-*•●○✻※☐☑❯>⎿]|\d+[.)])\s/;
 
 /**
- * Undo the agent's own line breaks so the text can be re-wrapped for a screen it
- * was never printed for.
+ * Undo the agent's own line breaks so a paragraph arrives as a paragraph.
  *
  * A line reaching the terminal's right edge was broken there, not ended there.
  * Where that edge falls is measured from the buffer rather than hardcoded, so
@@ -91,74 +90,6 @@ function unwrap(lines) {
   return out;
 }
 
-// Punctuation that closes something. Chinese typesetting does not begin a line
-// with it, so it hangs past the margin instead of falling to the next one.
-const NEVER_STARTS_A_LINE = /[、。，．・：；？！」』）】》〉］｝〕”’,.;:!?)\]}]/;
-
-// And the mirror: an opening mark left dangling at the end of a line reads as if
-// the quote never opened. It goes down with the words it belongs to.
-const NEVER_ENDS_A_LINE = /[「『（【《〈［｛〔“‘([{]/;
-
-/**
- * Greedy wrap at a column budget.
- *
- * Latin runs stay whole because a word broken mid-way is unreadable; every
- * fullwidth character is its own piece because Chinese breaks anywhere, and
- * treating a whole clause as one unbreakable token strands short lines.
- */
-function wrapLine(line, cols) {
-  const indent = line.match(/^ */)[0];
-  const budget = Math.max(cols - displayWidth(indent), 8);
-  const out = [];
-  let current = "";
-
-  const push = () => {
-    // The space that triggered the break rides along on the end of the line.
-    const done = current.replace(/\s+$/, "");
-    if (done !== "") out.push(indent + done);
-    current = "";
-  };
-
-  const pieces = [];
-  let latin = "";
-  for (const ch of line.slice(indent.length)) {
-    if (/\s/.test(ch) || WIDE.test(ch)) {
-      if (latin !== "") pieces.push(latin);
-      latin = "";
-      pieces.push(ch);
-    } else {
-      latin += ch;
-    }
-  }
-  if (latin !== "") pieces.push(latin);
-
-  // A path or a url can be wider than the whole line. Keeping it whole only moves
-  // the break to whatever renders it, so it breaks here where the budget is known.
-  const fitted = pieces.flatMap((piece) =>
-    displayWidth(piece) > budget ? (piece.match(new RegExp(`.{1,${budget}}`, "g")) ?? [piece]) : [piece],
-  );
-
-  for (const piece of fitted) {
-    const blank = /^\s+$/.test(piece);
-    if (blank && current === "") continue;
-    const overflows = displayWidth(current) + displayWidth(piece) > budget;
-    // The rule is about a lone mark falling to the next line, so it only applies
-    // to a single character. Matched against a whole token it also catches the dot
-    // that opens "../herdr.js" and refuses to ever break the line there.
-    const hangs = piece.length === 1 && NEVER_STARTS_A_LINE.test(piece);
-    if (overflows && current !== "" && !hangs) {
-      const dangling = NEVER_ENDS_A_LINE.test(current.slice(-1)) ? current.slice(-1) : "";
-      if (dangling !== "") current = current.slice(0, -1);
-      push();
-      current = dangling;
-      if (blank) continue;
-    }
-    current += piece;
-  }
-  push();
-  return out.length ? out : [line];
-}
-
 /**
  * A pane's screen with the agent's own furniture taken off.
  *
@@ -170,7 +101,7 @@ function wrapLine(line, cols) {
  * ponytail: no version-specific matching beyond the rule. Raw captures live in
  * ~/.local/state/herdr-watch/samples — retune from those, not from guesses.
  */
-export function cleanScreen(text, { lines = 60, chars = 2000, cols = 28 } = {}) {
+export function cleanScreen(text, { lines = 60, chars = 2000 } = {}) {
   // Agents pad with non-breaking spaces, which look identical and match none of
   // the space rules below — that is how a line escapes every collapse and still
   // arrives sixty columns wide.
@@ -201,22 +132,21 @@ export function cleanScreen(text, { lines = 60, chars = 2000, cols = 28 } = {}) 
   // One blank line separates a thought; three are the terminal breathing.
   const tight = flush.filter((line, i) => line !== "" || flush[i - 1] !== "");
 
-  // A terminal right-aligns by padding, so a hint sitting in the far corner
-  // arrives as ninety spaces. At twenty characters wide that is five blank lines
-  // in the middle of a sentence. Leading indent survives — it is the only thing
-  // telling an option from its blurb.
-  // Indent past this is right-alignment, not structure. Real nesting in these
-  // outputs runs two to five columns; sixty is a hint parked in the far corner,
-  // and keeping it would leave no room to put anything beside it.
+  // A terminal right-aligns by padding, so a hint in the far corner arrives as
+  // ninety spaces — five blank lines dropped into a sentence once something narrow
+  // renders it. Leading indent survives up to a point, because it is the only thing
+  // telling an option from its blurb; past five columns it is alignment, not
+  // structure, and keeping it would leave no room to put anything beside it.
   const MAX_INDENT = 5;
   const unpadded = tight.map((line) => {
     const indent = line.match(/^ */)[0];
     return " ".repeat(Math.min(indent.length, MAX_INDENT)) + line.slice(indent.length).replace(/ {2,}/g, " ");
   });
 
-  // Re-wrap for the screen it is about to be read on. `cols` is in terminal
-  // columns, so the default of 28 is fourteen Chinese characters a line.
-  const wrapped = cols > 0 ? unwrap(unpadded).flatMap((line) => wrapLine(line, cols)) : unpadded;
+  // Only unwrapped, never re-wrapped. Whatever renders this already breaks lines
+  // at its own width, and folding to a guess at that width first meant every
+  // paragraph got broken twice.
+  const joined = unwrap(unpadded);
 
-  return wrapped.slice(-lines).join("\n").slice(-chars).trim();
+  return joined.slice(-lines).join("\n").slice(-chars).trim();
 }

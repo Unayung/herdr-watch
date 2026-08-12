@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert";
 import { pathToFileURL } from "node:url";
-import { SOCKET, agents, screen, cleanScreen, displayWidth } from "./herdr.js";
+import { SOCKET, agents, screen, cleanScreen } from "./herdr.js";
 
 const BARK_SERVER = process.env.BARK_SERVER || "https://api.day.app";
 const BARK_KEY = process.env.BARK_KEY;
@@ -134,29 +134,17 @@ function selftest() {
   assert.equal(brief(`done.${" ".repeat(80)}hint`), "done. hint", "right-aligned padding collapses");
   assert.equal(brief("  2. option\n     its blurb"), "2. option\n   its blurb", "leading indent is not touched");
 
-  const wrapped = cleanScreen("一二三四五六七八九十壹貳參肆伍陸柒捌玖拾，收尾。", { cols: 28 });
-  assert.ok(
-    wrapped.split("\n").every((line) => displayWidth(line) <= 28),
-    "nothing exceeds the column budget",
-  );
-  assert.ok(
-    wrapped.split("\n").every((line) => !/^[，。]/.test(line)),
-    "and no line opens with closing punctuation",
-  );
+  assert.equal(cleanScreen(`a${"\u00A0".repeat(40)}b`), "a b", "non-breaking padding collapses like any other");
+
+  // Lines the agent broke at its own right edge come back as one paragraph, so
+  // whatever renders them breaks them once, at the width it actually has.
+  const edge = "字".repeat(65);
+  assert.equal(cleanScreen(`${edge}\n續行。`), `${edge}續行。`, "a full-width line takes the next with it");
+  assert.equal(cleanScreen("短句。\n下一段。"), "短句。\n下一段。", "a line that ended early stays ended");
   assert.equal(
-    cleanScreen("aaaa bbbb cccc dddd eeee ffff gggg", { cols: 12 }),
-    "aaaa bbbb\ncccc dddd\neeee ffff\ngggg",
-    "latin words stay whole",
-  );
-  assert.equal(cleanScreen("abc", { cols: 0 }), "abc", "cols 0 leaves the text alone");
-  assert.ok(
-    cleanScreen(`⎿ Wrote 36 lines to ../herdr-watch/herdr.js`, { cols: 28 }).includes("\n"),
-    "a token merely starting with a dot still breaks",
-  );
-  assert.equal(
-    cleanScreen(`a${"\u00A0".repeat(40)}b`, { cols: 28 }),
-    "a b",
-    "non-breaking padding collapses like any other",
+    cleanScreen(`${edge}\n2. 下一個選項`),
+    `${edge}\n2. 下一個選項`,
+    "a numbered item begins something, however full the line above it was",
   );
 
   // Real captures, not invented ones. A blocked screen puts the question between
