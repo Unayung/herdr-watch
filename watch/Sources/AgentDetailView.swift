@@ -53,8 +53,11 @@ struct AgentDetailView: View {
                     ProgressView()
                         .listRowBackground(Color.clear)
                 } else {
+                    // A text style rather than a fixed 12pt: this is the part you
+                    // actually read on a wrist, and it should follow the watch's
+                    // own text size setting instead of ignoring it.
                     Text(screen.isEmpty ? "（讀不到畫面）" : screen)
-                        .font(.system(size: 12, design: .monospaced))
+                        .font(.system(.body, design: .monospaced))
                         .listRowBackground(Color.clear)
                 }
             }
