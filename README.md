@@ -104,11 +104,16 @@ To see the interface without a watch: the canvas (`#Preview` blocks, fixtures in
 `Sample.swift`, no network) for layout, or a watchOS simulator, which reaches the
 bridge over the internet like a real watch and shows live agents.
 
-**The Swift has never been compiled.** It was written on Linux with no Swift
-toolchain and no watchOS SDK, so treat the first build as part of the work. Two
-things were already corrected by inspection and are worth knowing about if more
-turn up: `@AppStorage` does not drive `objectWillChange` from inside an
-`ObservableObject`, and `textSelection` does not exist on watchOS.
+The Swift was written on Linux with no toolchain and no SDK, then built and run on
+a Series 11. What that cost, in case it is useful next time: `@AppStorage` does not
+drive `objectWillChange` from inside an `ObservableObject`, `textSelection` does
+not exist on watchOS, and `WKApplication` alone leaves watchOS hunting for a
+companion iOS bundle id — a watch-only app needs `WKWatchOnly` too.
+
+Layout took the longest. A leading-aligned stack in a `ScrollView` leaves buttons
+short of the trailing edge no matter where the `maxWidth` goes; `List` sizes its
+rows correctly but puts a capsule behind every one of them, which makes plain text
+read as something to press.
 
 ## Running as services
 
@@ -123,6 +128,10 @@ systemctl --user enable --now herdr-watch-bridge   # bridge
 absolute path in instead — systemd does not read your shell profile.
 
 ## Answering from the wrist
+
+Verified end to end on 2026-08-12: an `AskUserQuestion` with three options reached
+the watch with its labels intact, a tap sent `3` to the pane, and the session that
+asked received the third option. Eighteen seconds, wrist to terminal.
 
 No UI has to own `PermissionRequest`. The wrist answers by typing into the pane
 through `pane.send_keys`, which is what your hands would have done — so the
