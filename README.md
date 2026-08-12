@@ -2,6 +2,11 @@
 
 Agent status from [herdr](https://herdr.dev) on an Apple Watch.
 
+<p>
+  <img src="docs/wrist.jpg" alt="The roster on a Series 11: three agents, two finished and one idle" width="330">
+  <img src="docs/roster.png" alt="The same roster, screenshotted from the watch" width="240">
+</p>
+
 herdr owns the roster and the state machine (which agents exist, where, and whether
 they are `working` / `blocked` / `done`). Claude Code hooks own the detail (what a
 prompt is actually asking). They join on the Claude session UUID: a hook's
