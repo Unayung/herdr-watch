@@ -36,12 +36,22 @@ struct AgentDetailView: View {
                             Button {
                                 send(keys: ["\(index + 1)"])
                             } label: {
-                                Text(option.label).font(.caption)
+                                // The surrounding stack is leading-aligned so the
+                                // text reads properly; buttons have to be told to
+                                // span the width or they stop at their content.
+                                Text(option.label)
+                                    .font(.caption)
+                                    .frame(maxWidth: .infinity)
                             }
                         }
                     }
-                    Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }
-                        .font(.caption2)
+                    Button(role: .destructive) {
+                        send(keys: ["esc"])
+                    } label: {
+                        Text("取消 (Esc)")
+                            .font(.caption2)
+                            .frame(maxWidth: .infinity)
+                    }
                     Divider()
                 }
 
