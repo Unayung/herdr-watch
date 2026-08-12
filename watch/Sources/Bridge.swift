@@ -8,7 +8,9 @@ import SwiftUI
 @MainActor
 final class Bridge: ObservableObject {
     @Published var agents: [Agent] = []
-    @Published var lastHook: HookEvent?
+    /// Keyed by session, because one slot for the latest hook is one slot for ten
+    /// agents: a `Stop` from any other pane wipes the question you are looking at.
+    @Published var questions: [String: HookEvent] = [:]
     @Published var connected = false
     @Published var error: String?
 
@@ -193,10 +195,18 @@ final class Bridge: ObservableObject {
         case "roster":
             if let envelope = try? JSONDecoder().decode(RosterEnvelope.self, from: data) {
                 agents = envelope.roster
+                // The bridge drops a question once its pane stops being blocked;
+                // follow it, so buttons never outlive the prompt they answer.
+                let blocked = Set(envelope.roster.filter { $0.status == "blocked" }.compactMap(\.sessionId))
+                questions = questions.filter { blocked.contains($0.key) }
             }
         case "hook":
-            if let hook = try? JSONDecoder().decode(HookEvent.self, from: data) {
-                lastHook = hook
+            // Only hooks that carry a question are worth keeping. A Stop has none,
+            // and storing it would be how the question got lost in the first place.
+            if let hook = try? JSONDecoder().decode(HookEvent.self, from: data),
+               let sessionId = hook.sessionId,
+               hook.questions?.isEmpty == false {
+                questions[sessionId] = hook
             }
         default:
             break

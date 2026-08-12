@@ -146,6 +146,8 @@ async function main() {
   const token = loadToken();
   const pairing = makePairing();
   const clients = new Set();
+  /** sessionId -> the hook whose question is still waiting to be answered. */
+  const questions = new Map();
   let roster = [];
 
   const publishCode = () => {
@@ -223,6 +225,7 @@ async function main() {
     if (url.pathname === "/hook" && req.method === "POST") {
       const body = await readBody(req).catch(() => ({}));
       const hook = projectHook(body);
+      if (hook.questions && hook.sessionId) questions.set(hook.sessionId, hook);
       for (const send of clients) send("hook", hook);
       console.log(`hook ${hook.event} ${hook.tool ?? ""} ${hook.detail}`.trimEnd());
       return json(res, 200, {});
@@ -231,6 +234,10 @@ async function main() {
     if (url.pathname === "/events") {
       const send = sse(res);
       send("roster", { roster });
+      // A hook fires once, at the moment of the prompt. By the time the push has
+      // reached a wrist and the app is open it is long gone, so the questions
+      // still outstanding are replayed to every client that arrives.
+      for (const hook of questions.values()) send("hook", hook);
       clients.add(send);
       // ponytail: 25s comment keeps Funnel's proxy from reaping an idle stream.
       const beat = setInterval(() => res.write(": beat\n\n"), 25000);
@@ -253,6 +260,13 @@ async function main() {
   for (;;) {
     try {
       const next = projectRoster(await agents());
+      // A question outlives its hook but not its prompt. Once herdr says the pane
+      // is no longer blocked it was answered — here, in the terminal, anywhere —
+      // and replaying it to the next client would offer buttons for a prompt that
+      // is gone.
+      const blocked = new Set(next.filter((a) => a.status === "blocked").map((a) => a.sessionId));
+      for (const sessionId of questions.keys()) if (!blocked.has(sessionId)) questions.delete(sessionId);
+
       if (JSON.stringify(next) !== JSON.stringify(roster)) {
         roster = next;
         for (const send of clients) send("roster", { roster });

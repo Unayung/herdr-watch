@@ -12,13 +12,10 @@ struct AnswerView: View {
         bridge.agents.first { $0.paneId == agent.paneId } ?? agent
     }
 
-    /// The options the hook reported, but only for this pane's session.
+    /// The options the hook reported for this pane's session.
     private var askedQuestion: HookEvent.Question? {
-        guard let hook = bridge.lastHook,
-              hook.sessionId != nil,
-              hook.sessionId == current.sessionId
-        else { return nil }
-        return hook.questions?.first
+        guard let sessionId = current.sessionId else { return nil }
+        return bridge.questions[sessionId]?.questions?.first
     }
 
     var body: some View {

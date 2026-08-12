@@ -56,7 +56,7 @@ extension Bridge {
         let bridge = Bridge()
         bridge.token = "preview"
         bridge.agents = Agent.samples
-        bridge.lastHook = .sample
+        bridge.questions = ["session-1": .sample]
         bridge.connected = true
         return bridge
     }
