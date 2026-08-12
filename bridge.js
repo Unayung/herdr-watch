@@ -14,7 +14,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import assert from "node:assert";
 import { pathToFileURL } from "node:url";
-import { agents, agentAt, screen, sendKeys, promptAgent } from "./herdr.js";
+import { agents, agentAt, screen, cleanScreen, sendKeys, promptAgent } from "./herdr.js";
 
 const PORT = Number(process.env.PORT || 7860);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -175,7 +175,7 @@ async function main() {
     if (url.pathname === "/screen") {
       const pane = url.searchParams.get("pane");
       if (!pane) return json(res, 400, { error: "pane required" });
-      const text = await screen(pane).catch(() => "");
+      const text = cleanScreen(await screen(pane).catch(() => ""));
       return json(res, 200, { pane, text });
     }
 

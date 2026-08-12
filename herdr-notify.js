@@ -18,7 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert";
 import { pathToFileURL } from "node:url";
-import { SOCKET, agents, screen } from "./herdr.js";
+import { SOCKET, agents, screen, cleanScreen } from "./herdr.js";
 
 const BARK_SERVER = process.env.BARK_SERVER || "https://api.day.app";
 const BARK_KEY = process.env.BARK_KEY;
@@ -47,28 +47,9 @@ export function transitions(prev, agents) {
   return fired;
 }
 
-/**
- * The readable tail of a pane's detection buffer.
- *
- * Everything below the last full-width rule is the agent's own status bar, so it
- * is cut. That holds for an idle screen (the rule is the input box) and a blocked
- * one (it is the bottom of the question box, with the question above it). An agent
- * that draws no rules keeps its whole tail rather than losing it.
- *
- * ponytail: no version-specific string matching beyond that. Raw screens land in
- * SAMPLE_DIR — retune from real blocked captures, not from guesses.
- */
+/** A notification's worth of screen. The watch asks for far more of the same. */
 export function brief(text) {
-  const raw = (text || "").split("\n").map((line) => line.replace(/\s+$/, ""));
-  let end = raw.length;
-  for (let i = raw.length - 1; i >= 0; i--) {
-    if (/─{10,}/.test(raw[i])) {
-      end = i;
-      break;
-    }
-  }
-  const lines = raw.slice(0, end).filter((line) => /[\p{L}\p{N}]/u.test(line) && !/─{10,}/.test(line));
-  return lines.slice(-BRIEF_LINES).join("\n").slice(-BRIEF_CHARS).trim();
+  return cleanScreen(text, { lines: BRIEF_LINES, chars: BRIEF_CHARS });
 }
 
 export function describe(agent, briefText = "") {
@@ -138,7 +119,7 @@ function selftest() {
   assert.deepEqual(ids(transitions(seen, [at("p1", "idle")])), [], "leaving blocked is quiet, closed pane forgotten");
   assert.deepEqual(ids(transitions(seen, [at("p1", "idle"), at("p3", "done")])), ["p3"], "new pane arriving done fires");
 
-  assert.equal(brief("  keep me  \n\n   \n  and me"), "keep me\n  and me", "decoration-only lines dropped");
+  assert.equal(brief("  keep me  \n\n   \n  and me"), "keep me\n\nand me", "blank-only lines collapse, the paragraph break stays");
   assert.equal(brief(Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n")).split("\n").length, BRIEF_LINES, "tail capped by line count");
   assert.ok(brief("好".repeat(2000)).length <= BRIEF_CHARS, "tail capped by char count");
   assert.equal(
@@ -147,6 +128,26 @@ function selftest() {
     "status bar below the last rule is cut",
   );
   assert.equal(brief("no rules here\njust text"), "no rules here\njust text", "an agent without rules keeps its tail");
+  assert.equal(brief("    two spaces everywhere\n    on every line"), "two spaces everywhere\non every line", "shared margin dropped");
+  assert.equal(brief("  option\n     its blurb"), "option\n   its blurb", "indentation that distinguishes is kept");
+  assert.equal(brief("a\n\n\n\nb"), "a\n\nb", "blank runs collapse to one");
+
+  // Real captures, not invented ones. A blocked screen puts the question between
+  // two rules and an idle one puts the input box below the content, so the same
+  // cut has to serve both — which is exactly what guessing got wrong before.
+  const fixture = (name) =>
+    cleanScreen(fs.readFileSync(new URL(`./test/samples/${name}.txt`, import.meta.url), "utf8"));
+
+  const blocked = fixture("blocked-askuserquestion");
+  assert.match(blocked, /推播要怎麼調/, "the question survives");
+  assert.match(blocked, /1\. 只推 blocked/, "so do its options");
+  assert.doesNotMatch(blocked, /Enter to select/, "the keyboard hint does not");
+  assert.doesNotMatch(blocked, /─{10}/, "nor any rule");
+
+  const idle = fixture("done-idle");
+  assert.doesNotMatch(idle, /weekly\s+[●○]/, "the quota bar is gone");
+  assert.doesNotMatch(idle, /bypass permissions/, "so is the mode hint");
+  assert.ok(idle.length > 200, "and the conversation above it is not");
 
   const card = describe({ agent_status: "blocked", cwd: "/a/pluto", terminal_title_stripped: "寶咪 V1" }, "要不要清掉 18 支分支？");
   assert.equal(card.title, "⏸ 寶咪 V1");

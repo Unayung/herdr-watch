@@ -125,8 +125,16 @@ npm test                                 # self-checks for both services
 | `BRIEF_LINES` / `BRIEF_CHARS` | `12` / `400` | how much screen rides along |
 
 The notification carries the tail of the pane, so you can tell from your wrist
-whether it needs you. Raw screens are kept in `~/.local/state/herdr-watch/samples`
-— the text-cleaning rule should be retuned against real captures, not guesses.
+whether it needs you. `/screen` serves the same text with a far higher cap.
+
+What gets cut is everything below the last full-width rule — the status bar, the
+quota meters, the keyboard hints — plus the terminal's shared left margin, which
+costs width a wrist does not have. The rule holds in both states, and `test/samples`
+holds a captured screen of each to keep it honest: on an idle pane that last rule
+is the input box, and on a blocked one it is the bottom of the question box, so
+the question and its options sit above it and survive. Guessing from an idle
+capture alone got this wrong once. Raw screens keep landing in
+`~/.local/state/herdr-watch/samples` for the next time it needs retuning.
 
 `done` means idle after unseen background work; focusing the tab in herdr marks it
 seen. Startup takes a baseline and does not push for agents already sitting in

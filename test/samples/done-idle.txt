@@ -1,0 +1,57 @@
+❯ 看起來還行，先這樣，能繼續推工程?
+● Funnel 沒被擋，funnel / https cap 都在，開放 port 443、8443、10000，而且你是 tailnet owner。P2 的傳輸層確定可行，不用退回 iPhone 中繼。
+
+  代價講清楚：Funnel 是開到公開網際網路，任何知道 example.ts.net 的人都打得到那個 port。所以 claude-watch 那套 pairing token
+  從「有比較好」變成「必須有」。
+
+  先把 P1 釘死不會隨 session 死掉：
+
+  Ran 1 shell command
+
+● Write(~/.config/systemd/user/herdr-watch.service)
+  ⎿  Wrote 12 lines to ../../.config/systemd/user/herdr-watch.service
+      1 [Unit]
+      2 Description=herdr-watch bark notifier
+      3 After=network-online.target
+      4
+      5 [Service]
+      6 ExecStart=/home/unayung/.local/share/mise/shims/node /home/unayung/Projects/herdr-watch/herdr-notify.js
+      7 Environment=BARK_KEY=g4CZG8bnrbRX5mUvxaAbWa
+      8 Restart=always
+      9 RestartSec=5
+     … +2 lines
+
+  Ran 1 shell command
+
+● Background command "Restart notifier with updated code" failed with exit code 144
+
+● pkill -f 把自己的 shell 也殺了（模式字串出現在自己的命令列裡）。改用 PID：
+
+  Ran 4 shell commands
+
+● Linger 開著，所以 P1 現在登出也活著。
+
+  先更正我前面講錯的一件事：Funnel 的 443/8443/10000 限制是對外的 port，本機服務要監聽哪個 port 無所謂。所以 bridge 不用搬離 7860。
+
+  P2 的切法
+
+  我把 P2 切成兩塊，先做 a：
+
+  - P2a — 傳輸層：bridge 用 SSE 吐 herdr roster，token 驗證，掛上 Funnel。這塊現在就能用 curl 從 tailnet 外面驗完，不需要 Mac、不需要
+  Xcode。它同時把最不受我控制的部分（Funnel + 認證）先排除掉。
+  - P2b — hook 細節：接 Claude Code hooks，用 session_id join 進 roster。
+
+  先抽出共用的 socket 呼叫，兩個程式都要用：
+
+● Write(~/Projects/herdr-watch/herdr.js)
+  ⎿  Wrote 36 lines to ../herdr-watch/herdr.js
+       1 import net from "node:net";
+                                                            2 new messages (ctrl+End) ↓
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5 (1M context) │ ✍️ 17% │ …/Projects/claude-watch main │ ● high                                                                        /rc
+  current ●○○○○○○○○○  14% ⟳ 3:10am
+  weekly  ●●○○○○○○○○  23% ⟳ Aug 13, 10:00am
+  ⏵⏵ bypass permissions on · 1 shell · ← 2 agents

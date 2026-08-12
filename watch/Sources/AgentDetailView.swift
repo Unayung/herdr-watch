@@ -61,11 +61,15 @@ struct AgentDetailView: View {
                     ProgressView()
                         .listRowBackground(Color.clear)
                 } else {
-                    // A text style rather than a fixed 12pt: this is the part you
+                    // A text style rather than a fixed size: this is the part you
                     // actually read on a wrist, and it should follow the watch's
-                    // own text size setting instead of ignoring it.
+                    // own text size setting instead of ignoring it. Line spacing
+                    // because the bridge hands over dense terminal prose, and a
+                    // wall of it at this width is a wall.
                     Text(screen.isEmpty ? "（讀不到畫面）" : screen)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(.footnote, design: .monospaced))
+                        .foregroundStyle(Palette.loud)
+                        .lineSpacing(3)
                         .listRowBackground(Color.clear)
                 }
             }
