@@ -50,6 +50,115 @@ export async function screen(paneId) {
 
 const RULE = /─{10,}/;
 
+// CJK, kana, hangul and fullwidth punctuation occupy two columns in a terminal
+// and read as one character to someone holding up a wrist.
+const WIDE = /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/;
+
+/** Columns a string occupies, counting fullwidth characters as two. */
+export function displayWidth(text) {
+  let width = 0;
+  for (const ch of text) width += WIDE.test(ch) ? 2 : 1;
+  return width;
+}
+
+// Bullets, numbers and the markers an agent prints down its left edge. A line
+// starting with one of these begins something; it never continues the line above.
+const STARTS_SOMETHING = /^\s*([-*•●○✻※☐☑❯>⎿]|\d+[.)])\s/;
+
+/**
+ * Undo the agent's own line breaks so the text can be re-wrapped for a screen it
+ * was never printed for.
+ *
+ * A line reaching the terminal's right edge was broken there, not ended there.
+ * Where that edge falls is measured from the buffer rather than hardcoded, so
+ * this follows whatever width the agent was actually running at.
+ */
+function unwrap(lines) {
+  const edge = Math.max(0, ...lines.map(displayWidth));
+  if (edge < 40) return lines;
+  const out = [];
+  for (const line of lines) {
+    const previous = out[out.length - 1];
+    const continues =
+      previous !== undefined &&
+      previous !== "" &&
+      line !== "" &&
+      displayWidth(previous) >= edge - 2 &&
+      !STARTS_SOMETHING.test(line);
+    if (continues) out[out.length - 1] = previous + line.trimStart();
+    else out.push(line);
+  }
+  return out;
+}
+
+// Punctuation that closes something. Chinese typesetting does not begin a line
+// with it, so it hangs past the margin instead of falling to the next one.
+const NEVER_STARTS_A_LINE = /[、。，．・：；？！」』）】》〉］｝〕”’,.;:!?)\]}]/;
+
+// And the mirror: an opening mark left dangling at the end of a line reads as if
+// the quote never opened. It goes down with the words it belongs to.
+const NEVER_ENDS_A_LINE = /[「『（【《〈［｛〔“‘([{]/;
+
+/**
+ * Greedy wrap at a column budget.
+ *
+ * Latin runs stay whole because a word broken mid-way is unreadable; every
+ * fullwidth character is its own piece because Chinese breaks anywhere, and
+ * treating a whole clause as one unbreakable token strands short lines.
+ */
+function wrapLine(line, cols) {
+  const indent = line.match(/^ */)[0];
+  const budget = Math.max(cols - displayWidth(indent), 8);
+  const out = [];
+  let current = "";
+
+  const push = () => {
+    // The space that triggered the break rides along on the end of the line.
+    const done = current.replace(/\s+$/, "");
+    if (done !== "") out.push(indent + done);
+    current = "";
+  };
+
+  const pieces = [];
+  let latin = "";
+  for (const ch of line.slice(indent.length)) {
+    if (/\s/.test(ch) || WIDE.test(ch)) {
+      if (latin !== "") pieces.push(latin);
+      latin = "";
+      pieces.push(ch);
+    } else {
+      latin += ch;
+    }
+  }
+  if (latin !== "") pieces.push(latin);
+
+  // A path or a url can be wider than the whole line. Keeping it whole only moves
+  // the break to whatever renders it, so it breaks here where the budget is known.
+  const fitted = pieces.flatMap((piece) =>
+    displayWidth(piece) > budget ? (piece.match(new RegExp(`.{1,${budget}}`, "g")) ?? [piece]) : [piece],
+  );
+
+  for (const piece of fitted) {
+    const blank = /^\s+$/.test(piece);
+    if (blank && current === "") continue;
+    const overflows = displayWidth(current) + displayWidth(piece) > budget;
+    // The rule is about a lone mark falling to the next line, so it only applies
+    // to a single character. Matched against a whole token it also catches the dot
+    // that opens "../herdr.js" and refuses to ever break the line there.
+    const hangs = piece.length === 1 && NEVER_STARTS_A_LINE.test(piece);
+    if (overflows && current !== "" && !hangs) {
+      const dangling = NEVER_ENDS_A_LINE.test(current.slice(-1)) ? current.slice(-1) : "";
+      if (dangling !== "") current = current.slice(0, -1);
+      push();
+      current = dangling;
+      if (blank) continue;
+    }
+    current += piece;
+  }
+  push();
+  return out.length ? out : [line];
+}
+
 /**
  * A pane's screen with the agent's own furniture taken off.
  *
@@ -61,8 +170,14 @@ const RULE = /─{10,}/;
  * ponytail: no version-specific matching beyond the rule. Raw captures live in
  * ~/.local/state/herdr-watch/samples — retune from those, not from guesses.
  */
-export function cleanScreen(text, { lines = 60, chars = 2000 } = {}) {
-  const raw = (text || "").split("\n").map((line) => line.replace(/\s+$/, ""));
+export function cleanScreen(text, { lines = 60, chars = 2000, cols = 28 } = {}) {
+  // Agents pad with non-breaking spaces, which look identical and match none of
+  // the space rules below — that is how a line escapes every collapse and still
+  // arrives sixty columns wide.
+  const raw = (text || "")
+    .replace(/[\u00A0\u2000-\u200A\u202F\u205F]/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""));
 
   let end = raw.length;
   for (let i = raw.length - 1; i >= 0; i--) {
@@ -90,10 +205,18 @@ export function cleanScreen(text, { lines = 60, chars = 2000 } = {}) {
   // arrives as ninety spaces. At twenty characters wide that is five blank lines
   // in the middle of a sentence. Leading indent survives — it is the only thing
   // telling an option from its blurb.
+  // Indent past this is right-alignment, not structure. Real nesting in these
+  // outputs runs two to five columns; sixty is a hint parked in the far corner,
+  // and keeping it would leave no room to put anything beside it.
+  const MAX_INDENT = 5;
   const unpadded = tight.map((line) => {
     const indent = line.match(/^ */)[0];
-    return indent + line.slice(indent.length).replace(/ {2,}/g, " ");
+    return " ".repeat(Math.min(indent.length, MAX_INDENT)) + line.slice(indent.length).replace(/ {2,}/g, " ");
   });
 
-  return unpadded.slice(-lines).join("\n").slice(-chars).trim();
+  // Re-wrap for the screen it is about to be read on. `cols` is in terminal
+  // columns, so the default of 28 is fourteen Chinese characters a line.
+  const wrapped = cols > 0 ? unwrap(unpadded).flatMap((line) => wrapLine(line, cols)) : unpadded;
+
+  return wrapped.slice(-lines).join("\n").slice(-chars).trim();
 }
