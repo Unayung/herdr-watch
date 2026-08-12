@@ -7,6 +7,71 @@ Agent status from [herdr](https://herdr.dev) on an Apple Watch.
   <img src="docs/roster.png" alt="The same roster, screenshotted from the watch" width="240">
 </p>
 
+## Install
+
+### Paste this at your coding agent
+
+Claude Code · Codex · Cursor. Run it on the machine where herdr and the agents
+actually live, not on a laptop attached with `herdr --remote`.
+
+```text
+Set up herdr-watch on this machine. It serves herdr's agent roster to an Apple Watch.
+
+1. Check prerequisites first and stop if any fail: `herdr --version` is 0.8.0 or
+   newer, `~/.config/herdr/herdr.sock` exists (herdr must be running), and
+   `node --version` is 18 or newer.
+
+2. Clone https://github.com/Unayung/herdr-watch into ~/Projects/herdr-watch and run
+   `npm test`. Both self-checks must print ok. There is nothing to npm install —
+   the project has no dependencies.
+
+3. Start the bridge. Copy systemd/herdr-watch-bridge.service into
+   ~/.config/systemd/user/, and if node is not at a system path, put its absolute
+   path in ExecStart — systemd does not read my shell profile. Then
+   `systemctl --user enable --now herdr-watch-bridge` and confirm
+   `curl -s localhost:7860/health` returns {"ok":true}.
+
+4. Wire up Claude Code's hooks with `node setup-hooks.js`, then show me what
+   changed. It backs the settings file up first and leaves other tools' hooks in
+   place, but I want to see it.
+
+5. Notifications are separate and optional. If I give you a Bark key, copy
+   systemd/herdr-watch.service, put the key after Environment=BARK_KEY=, and enable
+   it the same way. Without a key it runs as a dry run and prints instead.
+
+6. Do not publish the bridge. A watch cannot join a tailnet, so it will eventually
+   need a public hostname, but that decision is mine: what you would be exposing is
+   a service that types into my terminal. Tell me which routes this machine could
+   take — `tailscale funnel --bg 7860`, or a cloudflared ingress rule pointing at
+   127.0.0.1:7860 — and wait.
+
+7. When I ask for the pairing code, print
+   `cat ~/.local/state/herdr-watch/pair-code`. It rotates every ten minutes and
+   dies after five wrong guesses.
+
+The watch app needs a Mac you can't reach from here: `xcodegen generate` in watch/,
+then Xcode, a development team, and a paired Apple Watch.
+```
+
+### Or by hand
+
+```bash
+git clone https://github.com/Unayung/herdr-watch && cd herdr-watch
+npm test && node bridge.js          # prints the pair-code path
+node setup-hooks.js                 # --remove to undo
+```
+
+### Requirements
+
+Herdr 0.8.0+, Node 18+, and an agent herdr already detects. No npm install, no
+native module, no runtime dependency.
+
+For the watch app: macOS with Xcode 16, xcodegen, an Apple developer account, and
+an Apple Watch on watchOS 10 or newer. For notifications: the Bark app, or a few
+lines' edit for ntfy or anything else that takes a POST.
+
+---
+
 herdr owns the roster and the state machine (which agents exist, where, and whether
 they are `working` / `blocked` / `done`). Claude Code hooks own the detail (what a
 prompt is actually asking). They join on the Claude session UUID: a hook's
