@@ -4,6 +4,10 @@ After=network-online.target
 
 [Service]
 ExecStart=node %h/Projects/herdr-watch/bridge.js
+# Loopback by default, which a phone on the same Wi-Fi cannot reach. Drop this line
+# to keep it local — and know that with it, the token is all that stands between
+# anything on your network and a service that types into your terminal.
+Environment=HOST=0.0.0.0
 Restart=always
 RestartSec=5
 
