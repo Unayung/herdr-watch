@@ -39,7 +39,7 @@ struct PairView: View {
                     .listRowBackground(Color.clear)
             }
         }
-        .navigationTitle("herdr")
+        .navigationTitle("herdr-watch")
     }
 }
 

@@ -22,7 +22,7 @@ struct RosterView: View {
             Button("取消配對", role: .destructive) { bridge.unpair() }
                 .font(.caption2)
         }
-        .navigationTitle(bridge.connected ? "herdr" : "herdr ⚠︎")
+        .navigationTitle(bridge.connected ? "herdr-watch" : "herdr-watch ⚠︎")
         .navigationDestination(for: Agent.self) { AgentDetailView(agent: $0) }
         .task {
             await bridge.refresh()
