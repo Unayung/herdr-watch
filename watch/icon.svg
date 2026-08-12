@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#101114"/>
+  <!-- The herd, seen at a glance: one wants you, the rest are fine. Shifted up
+       so it reads centred once watchOS masks it to a circle. -->
+  <circle cx="512" cy="396" r="176" fill="#F5A03C"/>
+  <circle cx="316" cy="644" r="88" fill="#3D4350"/>
+  <circle cx="512" cy="680" r="88" fill="#3D4350"/>
+  <circle cx="708" cy="644" r="88" fill="#3D4350"/>
+</svg>

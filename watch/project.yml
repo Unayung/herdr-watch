@@ -23,6 +23,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
         TARGETED_DEVICE_FAMILY: 4
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: 5.0
         CODE_SIGN_STYLE: Automatic
         # Set this to your team, or set it once in Xcode's Signing & Capabilities.

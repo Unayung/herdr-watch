@@ -38,6 +38,11 @@ export async function sendKeys(paneId, keys) {
   return call("pane.send_keys", { pane_id: paneId, keys });
 }
 
+/** Submits text plus Enter atomically, honouring bracketed paste. */
+export async function promptAgent(paneId, text) {
+  return call("agent.prompt", { target: paneId, text });
+}
+
 export async function screen(paneId) {
   const res = await call("pane.read", { pane_id: paneId, source: "detection" });
   return res?.result?.read?.text ?? "";

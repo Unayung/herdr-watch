@@ -32,9 +32,17 @@ struct AgentDetailView: View {
                 }
                 .listRowBackground(Color.clear)
 
+                // Blocked wants one of a numbered set; idle wants a sentence. They
+                // are different inputs, so they get different entry points and
+                // never both show at once.
                 if current.status == "blocked" {
                     NavigationLink("回覆…") {
                         AnswerView(agent: current)
+                    }
+                    .font(.caption)
+                } else if current.status == "idle" || current.status == "done" {
+                    NavigationLink("說話…") {
+                        SpeakView(agent: current)
                     }
                     .font(.caption)
                 }

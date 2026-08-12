@@ -73,6 +73,7 @@ the edge with no request ever reaching cloudflared.
 | `GET /events` | the roster over SSE, plus `hook` events |
 | `GET /screen?pane=` | that pane's screen, on demand |
 | `POST /reply` | type keys into a pane, guarded by its state counter |
+| `POST /prompt` | send dictated text, only to an agent that is waiting for it |
 | `POST /hook` | every Claude Code hook; observed, never answered |
 
 Funnel puts this on the public internet, so the token is the whole trust boundary.
@@ -148,5 +149,17 @@ and refusing on a mismatch, so a late tap cannot type into whatever prompt arriv
 next. Worth keeping if you touch this: without the check, a stale `1` lands in the
 agent's input box and submits a turn.
 
-Still not built: dictating a prompt from the wrist. `agent.prompt` handles
-bracketed paste and Enter atomically, so it is the right call when it happens.
+## Dictating from the wrist
+
+A blocked pane wants one of a numbered set; an idle one wants a sentence. Those
+are different inputs, so they have separate pages and never appear together —
+typing prose into a permission dialog answers nothing and leaves the leftovers in
+the prompt behind it. `/prompt` enforces the same rule server-side and goes through
+`agent.prompt`, which submits text and Enter atomically.
+
+No Speech framework: tapping a watchOS `TextField` already offers dictation next to
+scribble and emoji, and the OS owns the microphone permission.
+
+Not handled: the free-text "Other" on an `AskUserQuestion`. Answering it means
+picking its number first, and that number is added by the client rather than
+carried in the hook's `questions`, so there is nothing reliable to aim at.

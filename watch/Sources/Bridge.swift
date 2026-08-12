@@ -109,6 +109,28 @@ final class Bridge: ObservableObject {
         }
     }
 
+    /// Send dictated text as a prompt. Only meaningful while the agent is waiting
+    /// for input — the bridge refuses anything else.
+    @discardableResult
+    func prompt(pane: String, text: String) async -> Bool {
+        guard let url = url("/prompt") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["pane": pane, "text": text])
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 409 { error = "它現在沒在等你打字" }
+            await refresh()
+            return code == 200
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     func screen(pane: String) async -> String {
         let escaped = pane.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? pane
         guard let req = request("/screen", query: "?pane=\(escaped)") else { return "" }

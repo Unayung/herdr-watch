@@ -14,7 +14,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import assert from "node:assert";
 import { pathToFileURL } from "node:url";
-import { agents, agentAt, screen, sendKeys } from "./herdr.js";
+import { agents, agentAt, screen, sendKeys, promptAgent } from "./herdr.js";
 
 const PORT = Number(process.env.PORT || 7860);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -198,6 +198,23 @@ async function main() {
       if (!keys.length) return json(res, 400, { error: "keys required" });
       await sendKeys(body.pane, keys);
       console.log(`reply ${body.pane} ${keys.join(" ")}`);
+      return json(res, 200, { ok: true });
+    }
+
+    // Dictated text, sent as a prompt rather than as keystrokes. Refused unless the
+    // agent is waiting for input: typing a sentence into a numbered permission
+    // dialog answers nothing and leaves a mess in the prompt behind it.
+    if (url.pathname === "/prompt" && req.method === "POST") {
+      const body = await readBody(req).catch(() => ({}));
+      const agent = await agentAt(body.pane).catch(() => null);
+      if (!agent) return json(res, 404, { error: "no such pane" });
+      if (!["idle", "done"].includes(agent.agent_status)) {
+        return json(res, 409, { error: "not accepting text", status: agent.agent_status });
+      }
+      const text = typeof body.text === "string" ? body.text.trim() : "";
+      if (!text) return json(res, 400, { error: "text required" });
+      await promptAgent(body.pane, text);
+      console.log(`prompt ${body.pane} ${text.slice(0, 60)}`);
       return json(res, 200, { ok: true });
     }
 
