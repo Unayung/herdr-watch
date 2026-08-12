@@ -100,6 +100,10 @@ Set your team under Signing & Capabilities, build to the watch, then pair with t
 code from `npm run pair`. The default host is baked into `Bridge.swift` — change it
 there rather than typing a hostname on a watch.
 
+To see the interface without a watch: the canvas (`#Preview` blocks, fixtures in
+`Sample.swift`, no network) for layout, or a watchOS simulator, which reaches the
+bridge over the internet like a real watch and shows live agents.
+
 **The Swift has never been compiled.** It was written on Linux with no Swift
 toolchain and no watchOS SDK, so treat the first build as part of the work. Two
 things were already corrected by inspection and are worth knowing about if more

@@ -83,3 +83,15 @@ struct AgentDetailView: View {
         loading = false
     }
 }
+
+#if DEBUG
+#Preview("等你回覆") {
+    NavigationStack { AgentDetailView(agent: Agent.samples[0]) }
+        .environmentObject(Bridge.preview)
+}
+
+#Preview("進行中") {
+    NavigationStack { AgentDetailView(agent: Agent.samples[2]) }
+        .environmentObject(Bridge.preview)
+}
+#endif

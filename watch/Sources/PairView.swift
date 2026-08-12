@@ -45,3 +45,10 @@ struct PairView: View {
         .navigationTitle("herdr")
     }
 }
+
+#if DEBUG
+#Preview("配對") {
+    NavigationStack { PairView() }
+        .environmentObject(Bridge.previewUnpaired)
+}
+#endif
