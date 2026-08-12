@@ -16,17 +16,21 @@ struct AgentDetailView: View {
         // A List rather than a ScrollView: watchOS lays its rows out full width on
         // its own, which hand-tuned frames inside a leading-aligned stack did not.
         List {
+            // Every List row carries a capsule background on watchOS, which makes
+            // plain text read as something you can press. Only the buttons keep it.
             Section {
                 // The task title carries the whole line here rather than in the
                 // navigation bar, where watchOS truncates it after a few words.
                 Text(current.title)
                     .font(.footnote)
+                    .listRowBackground(Color.clear)
                 HStack(spacing: 6) {
                     Circle().fill(current.color).frame(width: 8, height: 8)
                     Text(current.label)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                .listRowBackground(Color.clear)
             }
 
             // Buttons exist only while herdr still says this pane is blocked. The
@@ -37,6 +41,7 @@ struct AgentDetailView: View {
                     if let question = askedQuestion {
                         Text(question.question)
                             .font(.footnote)
+                            .listRowBackground(Color.clear)
                         ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
                             Button(option.label) { send(keys: ["\(index + 1)"]) }
                                 .font(.caption)
@@ -50,9 +55,11 @@ struct AgentDetailView: View {
             Section {
                 if loading {
                     ProgressView()
+                        .listRowBackground(Color.clear)
                 } else {
                     Text(screen.isEmpty ? "（讀不到畫面）" : screen)
                         .font(.system(size: 12, design: .monospaced))
+                        .listRowBackground(Color.clear)
                 }
             }
         }

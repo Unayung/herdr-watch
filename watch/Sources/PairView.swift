@@ -36,6 +36,7 @@ struct PairView: View {
                 Text(error)
                     .font(.caption2)
                     .foregroundStyle(.red)
+                    .listRowBackground(Color.clear)
             }
         }
         .navigationTitle("herdr")
