@@ -7,6 +7,15 @@ struct RosterView: View {
         Set(bridge.agents.map(\.agent)).count > 1
     }
 
+    /// The count belongs in the title because it is the answer to the question that
+    /// made you raise your arm. Absent when nothing wants you — a standing "0" is
+    /// one more thing to read past.
+    private var title: String {
+        let waiting = bridge.agents.filter(\.wantsYou).count
+        let name = bridge.connected ? "herdr-watch" : "herdr-watch ⚠︎"
+        return waiting > 0 ? "\(name) · \(waiting)" : name
+    }
+
     var body: some View {
         List {
             if let error = bridge.error {
@@ -21,12 +30,13 @@ struct RosterView: View {
             }
             if bridge.agents.isEmpty {
                 Text("沒有 agent")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.plain)
             }
             Button("取消配對", role: .destructive) { bridge.unpair() }
                 .font(.caption2)
         }
-        .navigationTitle(bridge.connected ? "herdr-watch" : "herdr-watch ⚠︎")
+        .navigationTitle(title)
+        .animation(.snappy, value: bridge.agents)
         .navigationDestination(for: Agent.self) { AgentDetailView(agent: $0) }
         .task {
             await bridge.refresh()
@@ -54,22 +64,26 @@ struct AgentRow: View {
     let nameAgent: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Circle()
+        HStack(spacing: 9) {
+            // A rule down the full height of the row, not a dot. A shape with no
+            // intrinsic size stretches to the stack, so it grows with a two-line
+            // title and stays the loudest thing in the row either way.
+            Capsule()
                 .fill(agent.color)
-                .frame(width: 8, height: 8)
-                .padding(.top, 4)
-            VStack(alignment: .leading, spacing: 1) {
+                .frame(width: 3)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(agent.title)
-                    .font(.footnote)
+                    .font(.system(.footnote, design: .rounded).weight(agent.emphasis))
+                    .foregroundStyle(agent.wantsYou ? Palette.loud : Palette.plain)
                     .lineLimit(2)
                 Text(nameAgent
                      ? "\(agent.agentName) · \(agent.folder) · \(agent.label)"
                      : "\(agent.folder) · \(agent.label)")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.faint)
+                    .lineLimit(1)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
 }

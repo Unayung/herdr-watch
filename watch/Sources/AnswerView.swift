@@ -29,14 +29,15 @@ struct AnswerView: View {
                     .listRowBackground(Color.clear)
                 ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
                     Button(option.label) { send(keys: ["\(index + 1)"]) }
-                        .font(.caption)
+                        .font(.system(.caption, design: .rounded).weight(.semibold))
+                        .tint(Palette.amber)
                 }
             } else {
                 // The hook fires once. Open the app afterwards and the options are
                 // gone, but the pane is still waiting — Esc still gets you out.
                 Text("沒收到選項，畫面內容在上一頁")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.plain)
                     .listRowBackground(Color.clear)
             }
             Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }

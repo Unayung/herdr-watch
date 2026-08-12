@@ -18,12 +18,22 @@ struct Agent: Codable, Identifiable, Hashable {
     var id: String { paneId }
 
     /// herdr's vocabulary: blocked is waiting on you, done is finished and unseen.
+    /// Amber is reserved for blocked; the others recede by how safely they can wait.
     var color: Color {
         switch status {
-        case "blocked": return .orange
-        case "done": return .green
-        case "working": return .blue
-        default: return .secondary
+        case "blocked": return Palette.amber
+        case "done": return Palette.loud
+        case "working": return Palette.plain
+        default: return Palette.faint
+        }
+    }
+
+    /// Blocked and done both want you, but only one of them wants you now.
+    var emphasis: Font.Weight {
+        switch status {
+        case "blocked": return .semibold
+        case "done": return .medium
+        default: return .regular
         }
     }
 

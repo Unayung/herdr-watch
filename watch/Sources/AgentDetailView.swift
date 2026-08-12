@@ -22,15 +22,20 @@ struct AgentDetailView: View {
                 // everything else off the first screen, and neither line needed a
                 // row of its own. Plain text clears the capsule every List row
                 // carries on watchOS, so it does not read as something to press.
-                HStack(alignment: .top, spacing: 6) {
-                    Circle()
+                HStack(spacing: 9) {
+                    Capsule()
                         .fill(current.color)
-                        .frame(width: 8, height: 8)
-                        .padding(.top, 4)
-                    // Named unconditionally here: there is room, and knowing which
-                    // agent you are about to answer changes what the buttons mean.
-                    Text("\(current.agentName) · \(current.label) · \(current.title)")
-                        .font(.footnote)
+                        .frame(width: 3)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(current.title)
+                            .font(.system(.footnote, design: .rounded).weight(current.emphasis))
+                            .foregroundStyle(Palette.loud)
+                        // Named unconditionally here: there is room, and knowing
+                        // which agent you are answering changes what a button means.
+                        Text("\(current.agentName) · \(current.label)")
+                            .font(.caption2)
+                            .foregroundStyle(Palette.faint)
+                    }
                 }
                 .listRowBackground(Color.clear)
 
@@ -41,7 +46,8 @@ struct AgentDetailView: View {
                     NavigationLink("回覆…") {
                         AnswerView(agent: current)
                     }
-                    .font(.caption)
+                    .font(.system(.caption, design: .rounded).weight(.semibold))
+                    .tint(Palette.amber)
                 } else if current.status == "idle" || current.status == "done" {
                     NavigationLink("說話…") {
                         SpeakView(agent: current)
