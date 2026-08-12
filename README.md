@@ -254,3 +254,7 @@ scribble and emoji, and the OS owns the microphone permission.
 Not handled: the free-text "Other" on an `AskUserQuestion`. Answering it means
 picking its number first, and that number is added by the client rather than
 carried in the hook's `questions`, so there is nothing reliable to aim at.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
