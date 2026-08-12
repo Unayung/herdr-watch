@@ -3,6 +3,10 @@ import SwiftUI
 struct RosterView: View {
     @EnvironmentObject var bridge: Bridge
 
+    private var mixedAgents: Bool {
+        Set(bridge.agents.map(\.agent)).count > 1
+    }
+
     var body: some View {
         List {
             if let error = bridge.error {
@@ -12,7 +16,7 @@ struct RosterView: View {
             }
             ForEach(bridge.agents) { agent in
                 NavigationLink(value: agent) {
-                    AgentRow(agent: agent)
+                    AgentRow(agent: agent, nameAgent: mixedAgents)
                 }
             }
             if bridge.agents.isEmpty {
@@ -37,8 +41,17 @@ struct RosterView: View {
         .environmentObject(Bridge.preview)
 }
 
+#Preview("混合 agent") {
+    NavigationStack { RosterView() }
+        .environmentObject(Bridge.previewMixed)
+}
+
 struct AgentRow: View {
     let agent: Agent
+    /// Named only when the roster holds more than one kind. On an all-Claude
+    /// machine the word is on every row and tells you nothing; the moment you mix,
+    /// it is the first thing you need.
+    let nameAgent: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
@@ -50,7 +63,9 @@ struct AgentRow: View {
                 Text(agent.title)
                     .font(.footnote)
                     .lineLimit(2)
-                Text("\(agent.folder) · \(agent.label)")
+                Text(nameAgent
+                     ? "\(agent.agentName) · \(agent.folder) · \(agent.label)"
+                     : "\(agent.folder) · \(agent.label)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

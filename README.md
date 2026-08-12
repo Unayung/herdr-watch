@@ -24,6 +24,9 @@ Two smaller places assume Claude Code as well: the screen-cleaning rule was tune
 against its layout, and the buttons send a bare digit because that is what selects
 an option there. Neither is load-bearing enough to break another agent's roster.
 
+Mixed machines get told which is which: rows name their agent as soon as the roster
+holds more than one kind, and stay quiet about it when everything is the same.
+
 Everything in the data path runs on the machine hosting the agents. A laptop
 attached with `herdr --remote` is a terminal client, not part of the path.
 

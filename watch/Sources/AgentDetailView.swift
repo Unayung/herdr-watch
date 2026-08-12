@@ -27,7 +27,9 @@ struct AgentDetailView: View {
                         .fill(current.color)
                         .frame(width: 8, height: 8)
                         .padding(.top, 4)
-                    Text("\(current.label) · \(current.title)")
+                    // Named unconditionally here: there is room, and knowing which
+                    // agent you are about to answer changes what the buttons mean.
+                    Text("\(current.agentName) · \(current.label) · \(current.title)")
                         .font(.footnote)
                 }
                 .listRowBackground(Color.clear)

@@ -38,6 +38,26 @@ struct Agent: Codable, Identifiable, Hashable {
     }
 
     var wantsYou: Bool { status == "blocked" || status == "done" }
+
+    /// herdr names an agent by a short id of its own. Spell out the ones a person
+    /// would recognise and capitalise the rest, rather than carrying a table that
+    /// has to be right about every agent herdr will ever learn.
+    var agentName: String {
+        switch agent {
+        case "agy": return "Antigravity"
+        case "claude": return "Claude"
+        case "cline": return "Cline"
+        case "codex": return "Codex"
+        case "copilot": return "Copilot"
+        case "cursor": return "Cursor"
+        case "devin": return "Devin"
+        case "gemini": return "Gemini"
+        case "grok": return "Grok"
+        case "opencode": return "OpenCode"
+        case "qodercli": return "Qoder"
+        default: return agent.capitalized
+        }
+    }
 }
 
 struct RosterEnvelope: Codable {
