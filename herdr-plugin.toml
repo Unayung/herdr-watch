@@ -1,0 +1,50 @@
+# herdr-watch as a herdr plugin.
+#
+# What a plugin install buys you over the systemd units in systemd/: the bridge
+# comes up with the session, and the pairing code is a popup rather than a path
+# you have to remember. The watch app is still an Xcode build on a Mac — nothing
+# here can install that.
+
+id = "herdr-watch"
+name = "herdr-watch"
+version = "0.1.0"
+min_herdr_version = "0.8.0"
+description = "Serve herdr's agent roster to an Apple Watch — status, pane screens, and answering a blocked agent from your wrist"
+platforms = ["linux", "macos"]
+
+# Nothing to fetch: no dependencies, no native module. This only proves node can
+# run the thing before the install says it worked.
+[[build]]
+command = ["node", "bridge.js", "--selftest"]
+
+# 127.0.0.1:7860, which is exactly what systemd/herdr-watch-bridge.service does.
+# Run one or the other: whichever loses the port exits, and a startup that fails
+# does not take the session with it.
+[[startup]]
+command = ["node", "bridge.js"]
+
+# Six digits, dead after ten minutes or five wrong guesses. The bridge rewrites
+# the file every minute it is up, so this is always the code the watch is asking
+# for rather than the one it was asking for when the bridge started.
+[[panes]]
+id = "pair-code"
+title = "Pairing code for the watch"
+placement = "popup"
+command = ["bash", "-c", "cat ~/.local/state/herdr-watch/pair-code; read -rsn1 -p 'any key to close'"]
+
+# Only Claude Code emits PermissionRequest, and that hook is what puts labelled
+# buttons on the watch instead of a number you read off the pane. Everything
+# herdr detects still shows up in the roster without it.
+#
+# Wants the bridge to have run once — it reads the token the bridge writes.
+[[actions]]
+id = "install-hooks"
+title = "Point Claude Code's hooks at the bridge"
+contexts = ["global"]
+command = ["node", "setup-hooks.js"]
+
+[[actions]]
+id = "remove-hooks"
+title = "Take Claude Code's hooks back out"
+contexts = ["global"]
+command = ["node", "setup-hooks.js", "--remove"]

@@ -64,6 +64,17 @@ npm test && node bridge.js          # prints the pair-code path
 node setup-hooks.js                 # --remove to undo
 ```
 
+### Or as a herdr plugin
+
+```bash
+herdr plugin install Unayung/herdr-watch
+```
+
+`herdr-plugin.toml` starts the bridge with the session, puts the pairing code in a
+popup, and carries the hook wiring as an action. It is the same three commands as
+above with herdr holding them, so run it *or* the systemd units, not both — the
+second one to want port 7860 exits.
+
 ### Requirements
 
 Herdr 0.8.0+, Node 18+, and an agent herdr already detects. No npm install, no
