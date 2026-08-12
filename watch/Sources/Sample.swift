@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 // Fixtures for the Xcode canvas. Nothing here touches the network, so the previews
@@ -63,4 +62,3 @@ extension Bridge {
         return bridge
     }
 }
-#endif

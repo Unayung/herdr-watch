@@ -84,7 +84,6 @@ struct AgentDetailView: View {
     }
 }
 
-#if DEBUG
 #Preview("等你回覆") {
     NavigationStack { AgentDetailView(agent: Agent.samples[0]) }
         .environmentObject(Bridge.preview)
@@ -94,4 +93,3 @@ struct AgentDetailView: View {
     NavigationStack { AgentDetailView(agent: Agent.samples[2]) }
         .environmentObject(Bridge.preview)
 }
-#endif

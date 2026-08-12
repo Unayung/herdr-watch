@@ -32,12 +32,10 @@ struct RosterView: View {
     }
 }
 
-#if DEBUG
 #Preview("清單") {
     NavigationStack { RosterView() }
         .environmentObject(Bridge.preview)
 }
-#endif
 
 struct AgentRow: View {
     let agent: Agent
