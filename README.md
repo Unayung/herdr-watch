@@ -3,7 +3,7 @@
 Agent status from [herdr](https://herdr.dev) on an Apple Watch.
 
 <p>
-  <img src="docs/wrist.jpg" alt="The roster on a Series 11: three agents, two finished and one idle" width="330">
+  <img src="docs/wrist.jpg" alt="The roster on a Series 11: one agent working, two idle, and no count in the title because none of them wants you" width="290">
   <img src="docs/roster.png" alt="The roster as it looks now: a coloured rule down each row, the count of agents waiting in the title" width="240">
 </p>
 
