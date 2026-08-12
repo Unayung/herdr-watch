@@ -24,6 +24,9 @@ final class Bridge: ObservableObject {
         didSet { UserDefaults.standard.set(token, forKey: "token") }
     }
 
+    /// Sessions this connection has actually seen blocked, so a question is only
+    /// dropped after its prompt has been observed and then gone.
+    private var sawBlocked: Set<String> = []
     private var stream: Task<Void, Never>?
 
     init() {
@@ -195,10 +198,14 @@ final class Bridge: ObservableObject {
         case "roster":
             if let envelope = try? JSONDecoder().decode(RosterEnvelope.self, from: data) {
                 agents = envelope.roster
-                // The bridge drops a question once its pane stops being blocked;
-                // follow it, so buttons never outlive the prompt they answer.
+                // "Was blocked and now is not", never "is not blocked". The hook
+                // arrives the same instant herdr notices, and roster events fire
+                // for any of ten agents — one landing in that gap would drop the
+                // question before it could be shown.
                 let blocked = Set(envelope.roster.filter { $0.status == "blocked" }.compactMap(\.sessionId))
-                questions = questions.filter { blocked.contains($0.key) }
+                sawBlocked.formUnion(blocked)
+                questions = questions.filter { blocked.contains($0.key) || !sawBlocked.contains($0.key) }
+                sawBlocked.formIntersection(questions.keys)
             }
         case "hook":
             // Only hooks that carry a question are worth keeping. A Stop has none,

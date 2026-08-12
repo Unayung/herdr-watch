@@ -146,7 +146,7 @@ async function main() {
   const token = loadToken();
   const pairing = makePairing();
   const clients = new Set();
-  /** sessionId -> the hook whose question is still waiting to be answered. */
+  /** sessionId -> { hook, sawBlocked } for questions still waiting to be answered. */
   const questions = new Map();
   let roster = [];
 
@@ -225,9 +225,12 @@ async function main() {
     if (url.pathname === "/hook" && req.method === "POST") {
       const body = await readBody(req).catch(() => ({}));
       const hook = projectHook(body);
-      if (hook.questions && hook.sessionId) questions.set(hook.sessionId, hook);
+      if (hook.questions && hook.sessionId) questions.set(hook.sessionId, { hook, sawBlocked: false });
       for (const send of clients) send("hook", hook);
-      console.log(`hook ${hook.event} ${hook.tool ?? ""} ${hook.detail}`.trimEnd());
+      // The session id is here because the join to herdr's roster runs through it,
+      // and every question about a missing button starts with "did they match".
+      const asked = hook.questions ? ` ${hook.questions[0].options.length} options` : "";
+      console.log(`hook ${hook.event} ${hook.tool ?? "-"} session=${hook.sessionId ?? "-"}${asked}`);
       return json(res, 200, {});
     }
 
@@ -237,7 +240,7 @@ async function main() {
       // A hook fires once, at the moment of the prompt. By the time the push has
       // reached a wrist and the app is open it is long gone, so the questions
       // still outstanding are replayed to every client that arrives.
-      for (const hook of questions.values()) send("hook", hook);
+      for (const entry of questions.values()) send("hook", entry.hook);
       clients.add(send);
       // ponytail: 25s comment keeps Funnel's proxy from reaping an idle stream.
       const beat = setInterval(() => res.write(": beat\n\n"), 25000);
@@ -260,12 +263,15 @@ async function main() {
   for (;;) {
     try {
       const next = projectRoster(await agents());
-      // A question outlives its hook but not its prompt. Once herdr says the pane
-      // is no longer blocked it was answered — here, in the terminal, anywhere —
-      // and replaying it to the next client would offer buttons for a prompt that
-      // is gone.
+      // A question outlives its hook but not its prompt. Dropping it needs "was
+      // blocked and now is not", never "is not blocked": the hook and herdr's
+      // detection land within the same fraction of a second, so a poll landing in
+      // that gap would throw the question away before anyone saw it.
       const blocked = new Set(next.filter((a) => a.status === "blocked").map((a) => a.sessionId));
-      for (const sessionId of questions.keys()) if (!blocked.has(sessionId)) questions.delete(sessionId);
+      for (const [sessionId, entry] of questions) {
+        if (blocked.has(sessionId)) entry.sawBlocked = true;
+        else if (entry.sawBlocked) questions.delete(sessionId);
+      }
 
       if (JSON.stringify(next) !== JSON.stringify(roster)) {
         roster = next;
