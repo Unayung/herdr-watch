@@ -1,6 +1,7 @@
 import SwiftUI
-import WatchKit
 
+/// What this agent has been doing. The decision, if there is one, lives one page
+/// further in so that reading cannot become answering.
 struct AgentDetailView: View {
     let agent: Agent
     @EnvironmentObject var bridge: Bridge
@@ -16,30 +17,28 @@ struct AgentDetailView: View {
         // A List rather than a ScrollView: watchOS lays its rows out full width on
         // its own, which hand-tuned frames inside a leading-aligned stack did not.
         List {
-            // Buttons exist only while herdr still says this pane is blocked. The
-            // moment it is answered anywhere — terminal, notch, or here — the roster
-            // event flips the status and they go away by themselves.
-            //
-            // When there is something to answer it goes first: a wrist shows about
-            // three rows, and the decision should be one of them rather than
-            // something you scroll to past the context.
-            if current.status == "blocked" {
-                Section {
-                    if let question = askedQuestion {
-                        Text(question.question)
-                            .font(.footnote)
-                            .listRowBackground(Color.clear)
-                        ForEach(Array(question.options.enumerated()), id: \.offset) { index, option in
-                            Button(option.label) { send(keys: ["\(index + 1)"]) }
-                                .font(.caption)
-                        }
+            Section {
+                // Status and task name on one row. Two rows of header pushed
+                // everything else off the first screen, and neither line needed a
+                // row of its own. Plain text clears the capsule every List row
+                // carries on watchOS, so it does not read as something to press.
+                HStack(alignment: .top, spacing: 6) {
+                    Circle()
+                        .fill(current.color)
+                        .frame(width: 8, height: 8)
+                        .padding(.top, 4)
+                    Text("\(current.label) · \(current.title)")
+                        .font(.footnote)
+                }
+                .listRowBackground(Color.clear)
+
+                if current.status == "blocked" {
+                    NavigationLink("回覆…") {
+                        AnswerView(agent: current)
                     }
-                    Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }
-                        .font(.caption2)
+                    .font(.caption)
                 }
             }
-
-            Section { contextRow }
 
             Section {
                 if loading {
@@ -54,41 +53,7 @@ struct AgentDetailView: View {
         }
         .navigationTitle(current.folder)
         .task { await load() }
-    }
-
-    /// Status and task name on one row. Two rows of header pushed the answer
-    /// buttons off the first screen, and neither line needed a row of its own.
-    /// Every List row carries a capsule on watchOS, so plain text clears it —
-    /// otherwise it reads as something you can press.
-    private var contextRow: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Circle()
-                .fill(current.color)
-                .frame(width: 8, height: 8)
-                .padding(.top, 4)
-            Text("\(current.label) · \(current.title)")
-                .font(.footnote)
-        }
-        .listRowBackground(Color.clear)
-    }
-
-    /// The options the hook reported, but only for this pane's session.
-    private var askedQuestion: HookEvent.Question? {
-        guard let hook = bridge.lastHook,
-              hook.sessionId != nil,
-              hook.sessionId == current.sessionId
-        else { return nil }
-        return hook.questions?.first
-    }
-
-    private func send(keys: [String]) {
-        let pane = current.paneId
-        let seq = current.seq
-        Task {
-            let sent = await bridge.reply(pane: pane, seq: seq, keys: keys)
-            WKInterfaceDevice.current().play(sent ? .success : .failure)
-            await load()
-        }
+        .refreshable { await load() }
     }
 
     private func load() async {
