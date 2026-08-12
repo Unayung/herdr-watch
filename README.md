@@ -12,6 +12,18 @@ they are `working` / `blocked` / `done`). Claude Code hooks own the detail (what
 prompt is actually asking). They join on the Claude session UUID: a hook's
 `session_id` is the same value herdr stores as `agent_session.value` for that pane.
 
+So the line falls in the middle of an agent. Anything herdr detects — and it knows
+about twenty-odd kinds — shows up in the roster with its status, its title and its
+screen, gets a push when it blocks or finishes, and takes keystrokes back. What
+needs Claude Code is the labelled buttons: the question and its options arrive
+through the `PermissionRequest` hook, and nothing else emits one. On another agent
+you still see it waiting and can still answer by number, but you read the options
+off its own screen rather than off a button.
+
+Two smaller places assume Claude Code as well: the screen-cleaning rule was tuned
+against its layout, and the buttons send a bare digit because that is what selects
+an option there. Neither is load-bearing enough to break another agent's roster.
+
 Everything in the data path runs on the machine hosting the agents. A laptop
 attached with `herdr --remote` is a terminal client, not part of the path.
 
@@ -93,6 +105,9 @@ Hooks are wired for `PermissionRequest` and `Stop` only. `PostToolUse` would fir
 hundreds of times an hour across a full herdr, and `/screen` already answers "what
 is this pane doing". The bridge replies `{}` to every hook, so whatever else is
 hooked into `PermissionRequest` keeps deciding.
+
+`setup-hooks.js` writes to Claude Code's settings. Agents without an equivalent
+hook simply never post here, and lose nothing but the labelled buttons.
 
 ## Watch app — `watch/`
 
