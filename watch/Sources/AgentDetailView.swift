@@ -16,26 +16,13 @@ struct AgentDetailView: View {
         // A List rather than a ScrollView: watchOS lays its rows out full width on
         // its own, which hand-tuned frames inside a leading-aligned stack did not.
         List {
-            // Every List row carries a capsule background on watchOS, which makes
-            // plain text read as something you can press. Only the buttons keep it.
-            Section {
-                // The task title carries the whole line here rather than in the
-                // navigation bar, where watchOS truncates it after a few words.
-                Text(current.title)
-                    .font(.footnote)
-                    .listRowBackground(Color.clear)
-                HStack(spacing: 6) {
-                    Circle().fill(current.color).frame(width: 8, height: 8)
-                    Text(current.label)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .listRowBackground(Color.clear)
-            }
-
             // Buttons exist only while herdr still says this pane is blocked. The
             // moment it is answered anywhere — terminal, notch, or here — the roster
             // event flips the status and they go away by themselves.
+            //
+            // When there is something to answer it goes first: a wrist shows about
+            // three rows, and the decision should be one of them rather than
+            // something you scroll to past the context.
             if current.status == "blocked" {
                 Section {
                     if let question = askedQuestion {
@@ -52,6 +39,8 @@ struct AgentDetailView: View {
                 }
             }
 
+            Section { contextRow }
+
             Section {
                 if loading {
                     ProgressView()
@@ -65,6 +54,22 @@ struct AgentDetailView: View {
         }
         .navigationTitle(current.folder)
         .task { await load() }
+    }
+
+    /// Status and task name on one row. Two rows of header pushed the answer
+    /// buttons off the first screen, and neither line needed a row of its own.
+    /// Every List row carries a capsule on watchOS, so plain text clears it —
+    /// otherwise it reads as something you can press.
+    private var contextRow: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Circle()
+                .fill(current.color)
+                .frame(width: 8, height: 8)
+                .padding(.top, 4)
+            Text("\(current.label) · \(current.title)")
+                .font(.footnote)
+        }
+        .listRowBackground(Color.clear)
     }
 
     /// The options the hook reported, but only for this pane's session.
