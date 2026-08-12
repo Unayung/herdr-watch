@@ -17,6 +17,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: dev.unayung.herdrwatch
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKApplication: YES
+        # Without this, watchOS looks for a companion iOS app and refuses to install.
+        INFOPLIST_KEY_WKWatchOnly: YES
         INFOPLIST_KEY_CFBundleDisplayName: herdr
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
