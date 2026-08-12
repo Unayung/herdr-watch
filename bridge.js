@@ -44,6 +44,7 @@ export function projectRoster(list) {
       paneId: a.pane_id,
       sessionId: a.agent_session?.value ?? null,
       agent: a.agent ?? "unknown",
+      agentName: agentName(a.agent),
       status: a.agent_status ?? "unknown",
       title: a.terminal_title_stripped || a.title || a.agent || a.pane_id,
       folder: path.basename(a.cwd || "") || a.pane_id,
@@ -57,6 +58,26 @@ export function projectRoster(list) {
 
 // What you want to see first on a wrist: whoever is waiting on you.
 const RANK = ["blocked", "done", "working", "idle", "unknown"];
+
+// herdr names an agent by a short id of its own. Spell out the ones a person would
+// recognise and capitalise the rest, rather than carrying a table that has to stay
+// right about every agent herdr will ever learn. It lives here so both clients read
+// the same names instead of each keeping a copy to drift.
+const AGENT_NAMES = {
+  agy: "Antigravity",
+  claude: "Claude",
+  cline: "Cline",
+  codex: "Codex",
+  copilot: "Copilot",
+  cursor: "Cursor",
+  devin: "Devin",
+  gemini: "Gemini",
+  grok: "Grok",
+  opencode: "OpenCode",
+  qodercli: "Qoder",
+};
+
+const agentName = (id) => AGENT_NAMES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : "Unknown");
 
 /**
  * A rotating 6-digit code, so the watch never has to type the real token. It is
@@ -184,6 +205,14 @@ async function main() {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (url.pathname === "/health") return json(res, 200, { ok: true });
+
+    // The page and its icon carry no data — they ask for a pairing code like any
+    // other client. Serving them unauthenticated is what lets a phone reach this at
+    // all, and on one Wi-Fi that needs no tunnel and no Apple anything.
+    if (url.pathname === "/" || url.pathname === "/index.html") return file(res, "web/index.html", "text/html");
+    if (url.pathname === "/icon.png") {
+      return file(res, "watch/Sources/Assets.xcassets/AppIcon.appiconset/icon-1024.png", "image/png");
+    }
 
     if (url.pathname === "/pair" && req.method === "POST") {
       const body = await readBody(req).catch(() => ({}));
@@ -356,6 +385,16 @@ function readBody(req) {
   });
 }
 
+function file(res, relative, type) {
+  try {
+    const body = fs.readFileSync(new URL(relative, import.meta.url));
+    res.writeHead(200, { "content-type": type, "cache-control": "no-cache" });
+    res.end(body);
+  } catch {
+    json(res, 404, { error: "not found" });
+  }
+}
+
 function json(res, code, body) {
   res.writeHead(code, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
@@ -372,6 +411,9 @@ function selftest() {
   assert.deepEqual(rows.map((r) => r.paneId), ["p2", "p3", "p1"], "blocked sorts above working above idle");
   assert.equal(rows[0].folder, "pluto");
   assert.equal(rows[1].sessionId, "uuid-3", "claude session uuid carried for the hook join");
+  assert.equal(rows[1].agentName, "Claude", "agents are named once, here, for every client");
+  assert.equal(projectRoster([{ pane_id: "p", agent: "agy" }])[0].agentName, "Antigravity");
+  assert.equal(projectRoster([{ pane_id: "p", agent: "kimi" }])[0].agentName, "Kimi", "an unknown id is capitalised, not guessed at");
   assert.equal(rows[2].title, "JP");
 
   const bash = projectHook({ session_id: "u1", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "npm test" } });

@@ -9,6 +9,7 @@ extension Agent {
             paneId: "w1:p\(seq)",
             sessionId: "session-\(seq)",
             agent: agent,
+            agentName: agent.capitalized,
             status: status,
             title: title,
             folder: folder,

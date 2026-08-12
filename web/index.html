@@ -1,0 +1,251 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#171719">
+<link rel="apple-touch-icon" href="icon.png">
+<title>herdr-watch</title>
+
+<style>
+  :root {
+    --ground: #171719;
+    --amber: #fcaf24;
+    --loud: rgba(255, 255, 255, .92);
+    --plain: rgba(255, 255, 255, .38);
+    --faint: rgba(255, 255, 255, .18);
+    --row: rgba(255, 255, 255, .06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: max(12px, env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+    background: var(--ground);
+    color: var(--loud);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 19px; margin: 0 0 14px; letter-spacing: .01em; }
+  h1 .count { color: var(--amber); }
+  h1 .warn { color: var(--plain); font-weight: 400; }
+
+  .row {
+    display: flex; gap: 10px; align-items: stretch;
+    width: 100%; text-align: left;
+    background: var(--row); color: inherit;
+    border: 0; border-radius: 12px;
+    padding: 11px 12px; margin-bottom: 7px;
+    font: inherit;
+  }
+  .rule { width: 3px; border-radius: 2px; flex: none; }
+  .blocked { background: var(--amber); }
+  .done { background: #4ade80; }
+  .working { background: #60a5fa; }
+  .idle { background: var(--faint); }
+  .row .title { display: block; }
+  .row .sub { display: block; font-size: 12px; color: var(--plain); margin-top: 2px; }
+  .row.wants .title { font-weight: 600; }
+  .row:not(.wants) .title { color: var(--plain); }
+
+  button.act {
+    display: block; width: 100%;
+    background: var(--amber); color: #101114;
+    border: 0; border-radius: 12px;
+    padding: 13px; margin-bottom: 7px;
+    font: 600 15px/1 inherit;
+  }
+  button.act.quiet { background: var(--row); color: var(--loud); font-weight: 400; }
+  button.act.danger { background: var(--row); color: #f87171; }
+
+  input {
+    width: 100%; background: var(--row); color: var(--loud);
+    border: 0; border-radius: 12px; padding: 13px; margin-bottom: 7px;
+    font: 16px inherit;
+  }
+  pre {
+    white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+    font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--loud); margin: 0;
+  }
+  .muted { color: var(--plain); font-size: 13px; }
+  .err { color: #f87171; font-size: 13px; margin-bottom: 8px; }
+  .back { background: none; border: 0; color: var(--plain); font: inherit; padding: 0 0 12px; }
+</style>
+
+<div id="app"></div>
+
+<script>
+  const app = document.getElementById("app");
+  const store = window.localStorage;
+  let token = store.getItem("token") || "";
+  let agents = [];
+  let questions = {};      // sessionId -> hook
+  let seenBlocked = new Set();
+  let open = null;         // paneId being looked at
+  let screenText = "";
+  let error = "";
+  let stream = null;
+
+  const api = (path, opts) =>
+    fetch(path, { ...opts, headers: { ...(opts?.headers || {}), authorization: `Bearer ${token}` } });
+
+  const el = (tag, props = {}, ...kids) => {
+    const node = Object.assign(document.createElement(tag), props);
+    for (const kid of kids.flat()) if (kid) node.append(kid);
+    return node;
+  };
+
+  const agentAt = (paneId) => agents.find((a) => a.paneId === paneId);
+  const label = { blocked: "等你回覆", done: "完成", working: "進行中", idle: "閒置" };
+
+  async function pair(code) {
+    error = "";
+    const res = await fetch("pair", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) { error = "配對碼不對或已過期"; return render(); }
+    token = (await res.json()).token;
+    store.setItem("token", token);
+    connect();
+    render();
+  }
+
+  // The roster arrives whole on every change, and outstanding questions are
+  // replayed when this connects — a hook fires once, long before a phone is out.
+  function connect() {
+    stream?.close();
+    stream = new EventSource(`events?token=${encodeURIComponent(token)}`);
+    stream.addEventListener("roster", (event) => {
+      agents = JSON.parse(event.data).roster;
+      const blocked = new Set(agents.filter((a) => a.status === "blocked").map((a) => a.sessionId));
+      blocked.forEach((id) => seenBlocked.add(id));
+      // Drop a question only once its prompt has been seen and then gone: the hook
+      // and herdr's detection land in the same instant, and a roster event from any
+      // other agent would otherwise throw it away first.
+      for (const id of Object.keys(questions)) {
+        if (!blocked.has(id) && seenBlocked.has(id)) delete questions[id];
+      }
+      render();
+    });
+    stream.addEventListener("hook", (event) => {
+      const hook = JSON.parse(event.data);
+      if (hook.sessionId && hook.questions?.length) questions[hook.sessionId] = hook;
+      render();
+    });
+    stream.onerror = () => { error = "連線中斷，重試中"; render(); };
+  }
+
+  async function show(paneId) {
+    open = paneId;
+    screenText = "";
+    error = "";
+    render();
+    const res = await api(`screen?pane=${encodeURIComponent(paneId)}`);
+    if (res.ok) screenText = (await res.json()).text;
+    render();
+  }
+
+  async function post(path, body, whenBad) {
+    error = "";
+    const res = await api(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) error = whenBad(await res.text());
+    else if (path !== "screen") open = null;
+    render();
+  }
+
+  const answer = (a, keys) =>
+    post("reply", { pane: a.paneId, seq: a.seq, keys }, () => "已經在別處回答過了");
+
+  const say = (a, text) =>
+    post("prompt", { pane: a.paneId, text }, () => "它現在沒在等你打字");
+
+  const answerText = (a, text) =>
+    post("answer-text", { pane: a.paneId, seq: a.seq, text }, (body) =>
+      body.includes("no free-text") ? "這個提問不收打字" : "它已經不在等這個了");
+
+  function pairingView() {
+    const field = el("input", { type: "tel", inputMode: "numeric", maxLength: 6, placeholder: "6 位數配對碼" });
+    return [
+      el("h1", { textContent: "herdr-watch" }),
+      el("p", { className: "muted", textContent: "在跑 herdr 的那台機器上執行 npm run pair 取得配對碼。" }),
+      error && el("div", { className: "err", textContent: error }),
+      field,
+      el("button", { className: "act", textContent: "配對", onclick: () => pair(field.value.trim()) }),
+    ];
+  }
+
+  function rosterView() {
+    const waiting = agents.filter((a) => a.status === "blocked" || a.status === "done").length;
+    const kinds = new Set(agents.map((a) => a.agent));
+    const title = el("h1", {}, "herdr-watch");
+    if (waiting) title.append(el("span", { className: "count", textContent: ` · ${waiting}` }));
+
+    return [
+      title,
+      error && el("div", { className: "err", textContent: error }),
+      agents.length === 0 && el("p", { className: "muted", textContent: "沒有 agent" }),
+      ...agents.map((a) =>
+        el("button", {
+          className: `row ${a.status === "blocked" || a.status === "done" ? "wants" : ""}`,
+          onclick: () => show(a.paneId),
+        },
+          el("span", { className: `rule ${a.status}` }),
+          el("span", {},
+            el("span", { className: "title", textContent: a.title }),
+            el("span", {
+              className: "sub",
+              textContent: [kinds.size > 1 && a.agentName, a.folder, label[a.status] || a.status]
+                .filter(Boolean).join(" · "),
+            }),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  function detailView(a) {
+    const question = a.sessionId ? questions[a.sessionId]?.questions?.[0] : null;
+    const blocked = a.status === "blocked";
+    const waitingForWords = a.status === "idle" || a.status === "done";
+    const field = el("input", { placeholder: blocked ? "打字回覆" : "說點什麼" });
+
+    return [
+      el("button", { className: "back", textContent: "‹ 全部", onclick: () => { open = null; render(); } }),
+      el("h1", { textContent: a.title }),
+      el("p", { className: "muted", textContent: `${a.agentName} · ${a.folder} · ${label[a.status] || a.status}` }),
+      error && el("div", { className: "err", textContent: error }),
+
+      blocked && question && el("p", { textContent: question.question }),
+      blocked && question && question.options.map((option, i) =>
+        el("button", { className: "act", textContent: option.label, onclick: () => answer(a, [String(i + 1)]) })),
+
+      (blocked || waitingForWords) && field,
+      (blocked || waitingForWords) && el("button", {
+        className: "act quiet",
+        textContent: "送出",
+        onclick: () => {
+          const text = field.value.trim();
+          if (text) (blocked ? answerText : say)(a, text);
+        },
+      }),
+      blocked && el("button", { className: "act danger", textContent: "取消 (Esc)", onclick: () => answer(a, ["esc"]) }),
+
+      el("pre", { textContent: screenText || "（讀不到畫面）" }),
+    ];
+  }
+
+  function render() {
+    const a = open ? agentAt(open) : null;
+    if (open && !a) open = null;
+    app.replaceChildren(...(token ? (a ? detailView(a) : rosterView()) : pairingView()).flat().filter(Boolean));
+  }
+
+  if (token) connect();
+  render();
+</script>

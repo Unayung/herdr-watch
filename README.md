@@ -180,7 +180,8 @@ the edge with no request ever reaching cloudflared.
 
 | Route | |
 |---|---|
-| `GET /health` | the only route without a token |
+| `GET /` | the phone page |
+| `GET /health` | the only other route without a token |
 | `POST /pair` | six digits in, token out |
 | `GET /roster` | agents, sorted blocked → done → working → idle |
 | `GET /events` | the roster over SSE, plus `hook` events |
@@ -202,6 +203,31 @@ hooked into `PermissionRequest` keeps deciding.
 
 `setup-hooks.js` writes to Claude Code's settings. Agents without an equivalent
 hook simply never post here, and lose nothing but the labelled buttons.
+
+## Phone page — `web/`
+
+The bridge serves it at `/`. No build step, no dependency, and no host to type: the
+page talks to wherever it was loaded from, so pairing is the six digits and nothing
+else.
+
+On one Wi-Fi it needs no tunnel at all — the hardest part of this whole project
+simply does not apply:
+
+```bash
+HOST=0.0.0.0 node bridge.js
+# open http://<lan-ip>:7860 on the phone, pair, add to home screen
+```
+
+The token then crosses your network in the clear, which is the price of needing no
+certificate. A tunnel is for leaving the house.
+
+A watch can never have this. App Transport Security blocks cleartext and watchOS
+cannot join a tailnet, so the watch app has no path that avoids a public hostname
+with a real certificate. A phone browser has neither restriction.
+
+Everything the watch does, the page does: the roster over `EventSource`, the screen
+on demand, answer buttons, dictation. What it does not do is reach you — that is
+what the push is for.
 
 ## Watch app — `watch/`
 
