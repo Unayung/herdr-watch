@@ -1,118 +1,72 @@
 # Directions
 
-Two things worth building next, kept apart because they have almost nothing in
-common except the bridge they both talk to.
+## Built
+
+**The phone page.** Shipped in `web/`, served at `/`. Everything the watch does —
+roster, screen, answer buttons, dictation — with no build step, no Apple account,
+and no host to type, because the page talks to wherever it was loaded from.
+
+It cleared the wall the watch could not. On one Wi-Fi a browser reaches the bridge
+directly with no tunnel and no certificate; watchOS blocks cleartext and cannot
+join a tailnet, so the watch always needs a public hostname. Two things helped that
+were never planned: `EventSource` cannot set an `Authorization` header, and the
+`?token=` form was already there because curl needed it to test the stream.
+
+Answering a prompt with words landed too. The free-text choice is added by the
+client, so it never reaches the hook, but it is printed on screen with a number
+next to it — `/answer-text` reads that number, presses it, waits for the screen to
+visibly change, and types only then.
+
+**Notifications stay on Bark.** Web Push would need iOS 16.4, the page installed to
+the home screen, VAPID keys and a service worker. The push already reaches the
+wrist; the page is for looking and acting.
 
 ---
 
-## 1. A phone web page
+## Open
 
-The bridge already serves everything a browser needs. Nothing new is required on
-the server except a route that returns the page.
+### Cleartext on the LAN
 
-| Existing route | What the page does with it |
-|---|---|
-| `POST /pair` | six digits in, token out |
-| `GET /events` | `EventSource` is native to browsers |
-| `GET /screen?pane=` | the pane's screen when a row is opened |
-| `POST /reply` · `POST /prompt` | the buttons and the text field |
+`HOST=0.0.0.0` is what makes the phone page reachable at home, and it puts the
+token on the network in the open. Anything on that network can then reach a service
+that types into your terminal. Fine on a network you trust, worth knowing before
+carrying the machine onto one you do not.
 
-`EventSource` cannot set an `Authorization` header. It does not have to:
-`authorized()` already accepts `?token=`, which was added so curl could test the
-stream. SSE through cloudflared is verified.
+### Tailscale Funnel's certificate
 
-### Why this clears the wall the watch could not
+Never issued. `tailscale cert` failed six times, the DNS-01 order going `invalid`
+within the same second `SetDNS` returned; DNS and Funnel config both check out.
+The admin console's HTTPS Certificates toggle is the one thing not verified from
+the machine. Fixing it removes an external dependency and changes nothing else —
+the cloudflared ingress works.
 
-On one Wi-Fi, a phone browser reaches the bridge directly:
+### Open-sourcing the watch app
 
-```bash
-HOST=0.0.0.0 node bridge.js
-# open http://<lan-ip>:7860 on the phone, pair, add to home screen
-```
+The repository is public and MIT. What still stands between that and something a
+stranger can use:
 
-No Mac, no Xcode, no Apple account, no domain, no certificate, no tunnel. The
-hardest step in this whole project — publishing the bridge — simply does not apply
-at home, and a tunnel becomes something only travellers need.
+**Distribution.** A watchOS app cannot be downloaded. Every user needs a Mac,
+Xcode, an Apple developer account, and a willingness to sideload; a free account
+means re-signing every seven days. The App Store is not an easy escape either —
+without a bridge the app shows an empty screen and a reviewer cannot run one, so
+passing review would mean building a demo mode that stands on its own.
 
-watchOS can never have this. App Transport Security blocks cleartext HTTP, and a
-watch cannot join a tailnet, so the watch app has no path that avoids a public
-hostname with a real certificate.
+The phone page is the answer to most of this. It is what people would actually
+install, and it needs none of the above.
 
-### What it costs
+**Security.** One bearer token, no expiry, no revocation, no rate limiting, in
+front of `/reply` and `/prompt`. Defensible for one person who understands it;
+handing it to strangers wants per-device tokens, revocation, and failure rate
+limiting. The pairing code is six digits with five tries per ten-minute window —
+roughly four years of expected brute force, usable but not a number to tell people
+to relax about.
 
-One HTML file of vanilla JS, roughly two hundred lines, plus a `GET /` route. No
-framework and no bundler: this project has zero dependencies today, and a list view
-is not worth a front-end toolchain.
+**Chores.** `Bridge.swift` hardcodes `herdr.ccy.works`. Every UI string is
+Traditional Chinese. Push is written against Bark's payload. `cleanScreen` was
+tuned against Claude Code's layout, the buttons assume a bare digit selects an
+option there, and `/answer-text` matches an English label. Hooks are Claude Code
+only, while herdr recognises twenty-odd kinds — the rest get the roster and the
+screen but no labelled buttons.
 
-It also beats the watch on the things that annoyed us here — a reload ships a
-change instead of a rebuild, there is no seven-day resigning, and a phone screen
-fits the pane text that a wrist has to scroll.
-
-### Open questions
-
-- **Cleartext on the LAN.** Plain HTTP means the token crosses the local network in
-  the open. Fine at home, but it has to be said out loud rather than glossed.
-- **Notifications.** Web Push needs iOS 16.4 or newer, the page installed to the
-  home screen, VAPID keys and a service worker. Keep Bark or ntfy for the alert and
-  let the page handle looking and acting; revisit only if someone asks.
-
----
-
-## 2. Open-sourcing the watch app
-
-Three things genuinely block this, and they are not effort — they change what the
-project can be.
-
-### Distribution
-
-A watchOS app cannot be downloaded. Every user needs a Mac, Xcode, an Apple
-developer account, and the willingness to build and sideload; a free account means
-re-signing every seven days. The audience narrows from "herdr users" to "herdr
-users who own a Mac, a paid Apple account and an Apple Watch".
-
-The App Store is not an easy escape either. Without a bridge of their own the app
-shows an empty screen, and a reviewer cannot run one. Passing review would likely
-mean building a demo mode that stands on its own — a separate project's worth of
-work.
-
-### Transport
-
-Every user has to publish their bridge themselves: Funnel, cloudflared, ngrok, or
-a reverse proxy. We could not even get Funnel's certificate to issue. There is no
-version of this that installs and works.
-
-### Security
-
-What this actually is: **a service that types into your terminal, reachable from
-the internet.** `/reply` sends arbitrary keys and `/prompt` submits arbitrary text.
-The only thing in front of it is one bearer token that never expires, cannot be
-revoked, and is not rate limited.
-
-That is a defensible trade for one person who understands it. Handing it to
-strangers needs per-device tokens, revocation, rotation, failure rate limiting, and
-a warning that says plainly what is being exposed. The pairing code deserves a
-second look too: six digits, five tries per ten-minute window, is roughly four
-years of expected brute force — usable, but not a number to tell people to relax
-about.
-
-### Chores, once the above is settled
-
-- `Bridge.swift` hardcodes `herdr.ccy.works`
-- Every UI string is Traditional Chinese, hardcoded; English at minimum
-- Push is written against Bark's payload; others will want ntfy, Pushover, APNs
-- No LICENSE
-- `brief()` was tuned against Claude Code's screen, and the numbered buttons assume
-  a bare digit selects an option there. Codex or Gemini may want Enter or arrows.
-- Hooks are Claude Code only, while herdr recognises twenty-odd agent kinds — other
-  agents get the roster and the screen but no structured options
-
-### The split worth making
-
-`herdr-notify.js` has none of these problems. It is outbound only, opens no port,
-needs no Apple account and no build step. Any herdr user can run it today, and
-swapping the push channel is a few lines. That half is publishable now.
-
-The bridge and the watch app are better labelled a reference implementation, with
-the security warning attached, for people equipped to publish a service safely. If
-the goal is reach rather than a demo, the phone page above is the version people
-would actually install.
+**Client names.** `Sample.swift`, the self-checks and both screenshots carry real
+project names. Left deliberately; noted so nobody assumes it was missed.

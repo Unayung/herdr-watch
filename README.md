@@ -111,16 +111,15 @@ attached with `herdr --remote` is a terminal client, not part of the path.
 
 ```
 herdr.sock ───> herdr-notify ──> Bark push ──> phone ──> wrist
-           └──> bridge ──> SSE over Tailscale Funnel ──> watch app
-Claude Code hooks ──┘
+           └──> bridge ──┬──> SSE ──> watch app
+Claude Code hooks ───────┴──> /   ──> phone page
 ```
 
-Two ways in, because they cover different moments. Push reaches you when the app is
-closed, which on watchOS is nearly always — the OS will not hold a socket open in
-the background. The app is for when you raise your wrist and want the whole board.
+Push and the apps cover different moments. Push reaches you when nothing is open,
+which on watchOS is nearly always — the OS will not hold a socket in the
+background. The apps are for once you are looking.
 
-Where this could go next — a phone page, and what open-sourcing the watch app would
-take: [ROADMAP.md](ROADMAP.md).
+What is built, and what is still open: [ROADMAP.md](ROADMAP.md).
 
 ## Push — `herdr-notify.js`
 
