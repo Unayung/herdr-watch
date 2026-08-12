@@ -8,26 +8,17 @@ struct PairView: View {
     @State private var working = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("主機")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+        // A List, for the same reason the detail view uses one: watchOS sizes its
+        // rows full width, so the button lands centred without any frame tuning.
+        List {
+            Section("主機") {
                 TextField("host", text: $bridge.host)
                     .font(.footnote)
+            }
 
-                Text("配對碼")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            Section("配對碼") {
                 TextField("6 位數", text: $code)
                     .font(.title3)
-
-                if let error = bridge.error {
-                    Text(error)
-                        .font(.caption2)
-                        .foregroundStyle(.red)
-                }
-
                 Button {
                     working = true
                     Task {
@@ -40,7 +31,12 @@ struct PairView: View {
                 }
                 .disabled(code.count != 6 || working)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let error = bridge.error {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
         }
         .navigationTitle("herdr")
     }
