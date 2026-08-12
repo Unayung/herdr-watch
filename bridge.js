@@ -128,6 +128,29 @@ export function projectHook(body) {
   return hook;
 }
 
+/**
+ * The number that selects the free-text choice on a numbered prompt, read off the
+ * screen rather than inferred. It sits below the options the hook reported, and
+ * counting them to guess it would be right until the day it was not.
+ *
+ * ponytail: matches the English label. A localised client would need its own
+ * pattern, and finding nothing correctly offers no button at all.
+ */
+export function freeTextKey(screenText) {
+  const match = (screenText || "").match(/^\s*(\d+)\.\s*Type something/im);
+  return match ? match[1] : null;
+}
+
+/** True once the pane stops looking like it did, which is how you know a keystroke landed. */
+async function screenChanged(paneId, before, tries = 8, waitMs = 250) {
+  for (let i = 0; i < tries; i++) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const now = await screen(paneId).catch(() => before);
+    if (now !== before) return true;
+  }
+  return false;
+}
+
 export function authorized(req, url, token) {
   const header = req.headers.authorization || "";
   return header === `Bearer ${token}` || url.searchParams.get("token") === token;
@@ -218,6 +241,37 @@ async function main() {
       await promptAgent(body.pane, text);
       console.log(`prompt ${body.pane} ${text.slice(0, 60)}`);
       return json(res, 200, { ok: true });
+    }
+
+    // Answering a numbered prompt with words. The free-text choice is added by the
+    // client, so it never appears in the hook's questions — but it is printed on
+    // the screen with a number, and that number is readable rather than guessable.
+    //
+    // Two steps, and the second only happens if the first visibly worked: press the
+    // number, wait for the screen to actually change, then type. Sending text into
+    // a prompt that never opened a field would submit it as a turn instead.
+    if (url.pathname === "/answer-text" && req.method === "POST") {
+      const body = await readBody(req).catch(() => ({}));
+      const agent = await agentAt(body.pane).catch(() => null);
+      if (!agent) return json(res, 404, { error: "no such pane" });
+      if (agent.agent_status !== "blocked") return json(res, 409, { error: "not blocked", status: agent.agent_status });
+      if (body.seq !== undefined && agent.state_change_seq !== body.seq) {
+        return json(res, 409, { error: "stale", seq: agent.state_change_seq });
+      }
+      const text = typeof body.text === "string" ? body.text.trim() : "";
+      if (!text) return json(res, 400, { error: "text required" });
+
+      const before = await screen(body.pane).catch(() => "");
+      const key = freeTextKey(cleanScreen(before));
+      if (!key) return json(res, 409, { error: "no free-text option" });
+
+      await sendKeys(body.pane, [key]);
+      if (!(await screenChanged(body.pane, before))) {
+        return json(res, 409, { error: "the prompt did not open a field" });
+      }
+      await promptAgent(body.pane, text);
+      console.log(`answer-text ${body.pane} via ${key}: ${text.slice(0, 60)}`);
+      return json(res, 200, { ok: true, key });
     }
 
     // One endpoint for every hook — the payload names its own event. Observe only:
@@ -348,6 +402,14 @@ function selftest() {
   assert.ok(!pairing.accept(fresh), "burnt after too many tries, even for the right code");
   clock = CODE_TTL_MS + 1;
   assert.notEqual(pairing.current(), fresh, "rotates once expired");
+
+  assert.equal(
+    freeTextKey("❯ 1. 只推 blocked\n  2. 維持現狀\n  4. Type something.\n  5. Chat about this"),
+    "4",
+    "the free-text number is read off the screen",
+  );
+  assert.equal(freeTextKey("1. a\n2. b"), null, "a prompt without one offers nothing to press");
+  assert.equal(freeTextKey(""), null, "and neither does an empty screen");
 
   const url = new URL("http://x/events?token=good");
   assert.ok(authorized({ headers: {} }, url, "good"), "query token accepted");

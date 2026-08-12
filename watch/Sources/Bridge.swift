@@ -136,6 +136,31 @@ final class Bridge: ObservableObject {
         }
     }
 
+    /// Answer a numbered prompt with words. The bridge finds the free-text choice,
+    /// presses it, and only types once the screen has visibly changed.
+    @discardableResult
+    func answerText(pane: String, seq: Int, text: String) async -> Bool {
+        guard let url = url("/answer-text") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["pane": pane, "seq": seq, "text": text])
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 409 {
+                let reason = String(data: data, encoding: .utf8) ?? ""
+                error = reason.contains("no free-text") ? "這個提問不收打字" : "它已經不在等這個了"
+            }
+            await refresh()
+            return code == 200
+        } catch {
+            self.error = error.localizedDescription
+            return false
+        }
+    }
+
     func screen(pane: String) async -> String {
         let escaped = pane.addingPercentEncoding(withAllowedCharacters: .urlQueryValueAllowed) ?? pane
         guard let req = request("/screen", query: "?pane=\(escaped)") else { return "" }

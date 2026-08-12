@@ -187,6 +187,7 @@ the edge with no request ever reaching cloudflared.
 | `GET /screen?pane=` | that pane's screen, on demand |
 | `POST /reply` | type keys into a pane, guarded by its state counter |
 | `POST /prompt` | send dictated text, only to an agent that is waiting for it |
+| `POST /answer-text` | answer a numbered prompt with words, if it takes them |
 | `POST /hook` | every Claude Code hook; observed, never answered |
 
 Funnel puts this on the public internet, so the token is the whole trust boundary.
@@ -289,9 +290,14 @@ the prompt behind it. `/prompt` enforces the same rule server-side and goes thro
 No Speech framework: tapping a watchOS `TextField` already offers dictation next to
 scribble and emoji, and the OS owns the microphone permission.
 
-Not handled: the free-text "Other" on an `AskUserQuestion`. Answering it means
-picking its number first, and that number is added by the client rather than
-carried in the hook's `questions`, so there is nothing reliable to aim at.
+A numbered prompt can also be answered with words. That choice is added by the
+client and never appears in the hook's `questions`, but it is printed on the screen
+with a number, so `/answer-text` reads the number rather than counting the options
+and hoping. It presses it, waits for the screen to visibly change, and types only
+then — text sent into a prompt that never opened a field would be submitted as a
+turn instead. It matches the English label; a localised client needs its own
+pattern, and finding nothing means the wrist is told so instead of pressing
+something at random.
 
 ## License
 

@@ -37,6 +37,14 @@ struct AnswerView: View {
                     .foregroundStyle(Palette.plain)
                     .listRowBackground(Color.clear)
             }
+            // Offered whenever a prompt is up, because whether it takes words is
+            // only knowable from the screen at the moment you ask. The bridge
+            // answers that and says so if it does not.
+            NavigationLink("打字回覆…") {
+                AnswerTextView(agent: current)
+            }
+            .font(.caption2)
+
             Button("取消 (Esc)", role: .destructive) { send(keys: ["esc"]) }
                 .font(.caption2)
         }
