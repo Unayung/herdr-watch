@@ -131,6 +131,8 @@ function selftest() {
   assert.equal(brief("    two spaces everywhere\n    on every line"), "two spaces everywhere\non every line", "shared margin dropped");
   assert.equal(brief("  option\n     its blurb"), "option\n   its blurb", "indentation that distinguishes is kept");
   assert.equal(brief("a\n\n\n\nb"), "a\n\nb", "blank runs collapse to one");
+  assert.equal(brief(`done.${" ".repeat(80)}hint`), "done. hint", "right-aligned padding collapses");
+  assert.equal(brief("  2. option\n     its blurb"), "2. option\n   its blurb", "leading indent is not touched");
 
   // Real captures, not invented ones. A blocked screen puts the question between
   // two rules and an idle one puts the input box below the content, so the same

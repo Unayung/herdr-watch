@@ -86,5 +86,14 @@ export function cleanScreen(text, { lines = 60, chars = 2000 } = {}) {
   // One blank line separates a thought; three are the terminal breathing.
   const tight = flush.filter((line, i) => line !== "" || flush[i - 1] !== "");
 
-  return tight.slice(-lines).join("\n").slice(-chars).trim();
+  // A terminal right-aligns by padding, so a hint sitting in the far corner
+  // arrives as ninety spaces. At twenty characters wide that is five blank lines
+  // in the middle of a sentence. Leading indent survives — it is the only thing
+  // telling an option from its blurb.
+  const unpadded = tight.map((line) => {
+    const indent = line.match(/^ */)[0];
+    return indent + line.slice(indent.length).replace(/ {2,}/g, " ");
+  });
+
+  return unpadded.slice(-lines).join("\n").slice(-chars).trim();
 }
