@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// One accent, taken from the app icon, and a brightness ramp for everything else.
+/// The accent, taken from the app icon, and a grey ramp for text.
 ///
-/// Four hues for four statuses spread the emphasis evenly and left nothing looking
-/// urgent. Here amber is spent only on the one state that needs you to move, and
-/// the rest fade by how safely they can be ignored — so a raised wrist answers
-/// "does anything want me" before you have read a single word.
+/// Status keeps a hue each — the state of a pane is worth reading directly. What
+/// carries the urgency instead is weight and text brightness: the rows that want
+/// you are heavier and brighter, so a raised wrist ranks them before you have read
+/// a word, without giving up which state each one is in.
 enum Palette {
     static let amber = Color(red: 252 / 255, green: 175 / 255, blue: 36 / 255)
 
