@@ -5,6 +5,9 @@ After=network-online.target
 [Service]
 ExecStart=node %h/Projects/herdr-watch/herdr-notify.js
 Environment=BARK_KEY=
+# Set this to where the phone page is served and a tap on the notification lands
+# on that agent instead of the roster.
+Environment=PAGE_URL=
 Restart=always
 RestartSec=5
 

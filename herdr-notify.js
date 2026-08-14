@@ -25,6 +25,7 @@ const BARK_KEY = process.env.BARK_KEY;
 const POLL_MS = Number(process.env.POLL_MS || 3000);
 const BRIEF_LINES = Number(process.env.BRIEF_LINES || 12);
 const BRIEF_CHARS = Number(process.env.BRIEF_CHARS || 400);
+const PAGE_URL = process.env.PAGE_URL || "";
 const SAMPLE_DIR = path.join(os.homedir(), ".local/state/herdr-watch/samples");
 const NOTIFY = new Set(["blocked", "done"]);
 
@@ -57,13 +58,17 @@ export function describe(agent, briefText = "") {
   // Several agents commonly share one cwd, so the task title is what tells them
   // apart — it leads, and the folder drops to the subtitle.
   const task = agent.terminal_title_stripped || agent.title || agent.agent || agent.pane_id;
-  return {
+  const card = {
     title: `${blocked ? "⏸" : "✅"} ${task}`,
     subtitle: `${path.basename(agent.cwd || "") || agent.pane_id} · ${blocked ? "等你回覆" : "完成"}`,
     body: briefText || (blocked ? "等你回覆" : "完成"),
     group: "herdr",
     level: blocked ? "timeSensitive" : "active",
   };
+  // The buzz already told you which agent. Landing on the roster and hunting for
+  // it again is three steps the notification had no reason to cost you.
+  if (PAGE_URL) card.url = `${PAGE_URL.replace(/\/$/, "")}/#${encodeURIComponent(agent.pane_id)}`;
+  return card;
 }
 
 /** Keep the raw screen so the brief() rule can be tuned against real captures. */
@@ -169,6 +174,7 @@ function selftest() {
   assert.equal(card.subtitle, "pluto · 等你回覆");
   assert.equal(card.body, "要不要清掉 18 支分支？");
   assert.equal(describe({ agent_status: "done", cwd: "/a/x" }).body, "完成", "empty brief falls back");
+  assert.equal(describe({ agent_status: "done", cwd: "/a/x" }).url, undefined, "no page url, no link — the host is not ours to guess");
   console.log("ok");
 }
 

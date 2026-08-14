@@ -139,6 +139,9 @@
 
   async function show(paneId) {
     open = paneId;
+    // In the address, so a notification can hand you straight to the agent that
+    // buzzed and the back button means what it looks like it means.
+    if (location.hash.slice(1) !== paneId) location.hash = paneId;
     screenText = "";
     error = "";
     render();
@@ -216,7 +219,7 @@
     const field = el("input", { placeholder: blocked ? "打字回覆" : "說點什麼" });
 
     return [
-      el("button", { className: "back", textContent: "‹ 全部", onclick: () => { open = null; render(); } }),
+      el("button", { className: "back", textContent: "‹ 全部", onclick: () => { location.hash = ""; open = null; render(); } }),
       el("h1", { textContent: a.title }),
       el("p", { className: "muted", textContent: `${a.agentName} · ${a.folder} · ${label[a.status] || a.status}` }),
       error && el("div", { className: "err", textContent: error }),
@@ -246,6 +249,17 @@
     app.replaceChildren(...(token ? (a ? detailView(a) : rosterView()) : pairingView()).flat().filter(Boolean));
   }
 
+  // A notification's url arrives as #paneId, and the back button leaves through the
+  // same door. The pane may not be in the roster yet on a cold open, so the hash is
+  // kept and the render falls back to the list until it is.
+  const followHash = () => {
+    const paneId = decodeURIComponent(location.hash.slice(1));
+    if (paneId && paneId !== open) show(paneId);
+    else if (!paneId && open) { open = null; render(); }
+  };
+  addEventListener("hashchange", followHash);
+
   if (token) connect();
   render();
+  if (token) followHash();
 </script>
